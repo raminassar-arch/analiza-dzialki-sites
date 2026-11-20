@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#175c46">
+<meta name="description" content="Analiza działki w wersji WWW — otwarte dane GUGiK, GUS i OpenStreetMap, mapa, nasłonecznienie i raport PDF.">
+<title>Analiza działki — wersja WWW</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="vendor/leaflet.css?v=1.0.0">
+<link rel="stylesheet" href="styles.css?v=1.0.0">
+<link rel="stylesheet" href="site.css?v=1.0.0">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <header class="brand">
+      <span class="brand-mark">PL</span>
+      <div>
+        <h1>Analiza działki</h1>
+      </div>
+    </header>
+
+    <div class="pdf-top"><button id="pdf-btn" class="primary" disabled>📄 Generuj raport PDF</button></div>
+
+    <div class="search-wrap">
+      <div class="search-box">
+        <span class="search-ico">⌕</span>
+        <input id="search" placeholder="Szukaj adresu lub miejsca w Polsce" autocomplete="off" spellcheck="false">
+        <button id="search-clear" class="icon-btn" title="Wyczyść wyszukiwanie">×</button>
+      </div>
+      <div id="suggest" class="suggest" hidden></div>
+    </div>
+
+    <nav class="tabs" aria-label="Narzędzia">
+      <button class="tab active" data-tab="place"><span>◆</span>Miejsce</button>
+      <button class="tab" data-tab="layers"><span>▤</span>Warstwy</button>
+    </nav>
+
+    <main id="panel">
+      <!-- MIEJSCE / ANALIZA -->
+      <section id="tab-place" class="tab-panel active">
+        <div id="place-empty" class="empty-state">
+          <div class="empty-icon">◎</div>
+          <h2>Odkryj działkę</h2>
+          <p>Wpisz adres w pole wyszukiwania lub kliknij dowolne miejsce na mapie (min. poziom 15), aby pobrać dane o działce, budynkach, drogach i nasłonecznieniu.</p>
+        </div>
+        <div id="place-loading" class="loading-box" hidden>
+          <div class="loading-head">
+            <span class="spinner" aria-hidden="true"></span>
+            <div class="loading-title">
+              <strong id="load-title">Pobieram dane…</strong>
+              <span id="load-stage">Przygotowuję zapytania</span>
+            </div>
+            <span id="load-pct">0%</span>
+          </div>
+          <div id="load-track" class="progress-track" role="progressbar" aria-label="Postęp pobierania danych" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div id="load-bar" class="progress-bar"></div>
+          </div>
+          <ul class="load-steps">
+            <li id="load-uld"><i></i><span>Dane ewidencyjne działki</span></li>
+            <li id="load-osm"><i></i><span>Budynki, drogi i otoczenie</span></li>
+            <li id="load-mpzp"><i></i><span>Plan miejscowy</span></li>
+            <li id="load-bdl"><i></i><span>Dane statystyczne</span></li>
+          </ul>
+          <div class="load-foot"><span id="load-bytes">Pobrano 0 B</span></div>
+        </div>
+        <div id="place-content" hidden></div>
+        <div id="building-result" class="building-result" hidden></div>
+      </section>
+
+      <!-- WARSTWY -->
+      <section id="tab-layers" class="tab-panel">
+        <h3>Warstwy tematyczne</h3>
+        <div class="layer-list">
+          <label><input type="checkbox" id="ov-egib" checked><span>Działki i budynki (EGiB)</span></label>
+          <label><input type="checkbox" id="ov-mpzp"><span>Plany miejscowe (MPZP)</span></label>
+          <label><input type="checkbox" id="ov-util" checked><span>Uzbrojenie działki (media)</span></label>
+        </div>
+        <div class="field">
+          <label for="mpzp-opacity">Przezroczystość MPZP</label>
+          <input id="mpzp-opacity" type="range" min="10" max="100" value="70">
+        </div>
+        <h3>Cienie budynków</h3>
+        <div class="shade-controls">
+          <div class="field-row">
+            <label class="shade-toggle"><input type="checkbox" id="shadow-on" checked> Pokaż</label>
+            <select id="shadow-day">
+              <option value="0">21 grudnia</option>
+              <option value="1">21 marca</option>
+              <option value="2">21 czerwca</option>
+            </select>
+          </div>
+          <div class="field-row shade-time">
+            <label for="shadow-hour">Godzina</label>
+            <input id="shadow-hour" type="range" min="8" max="18" step="1" value="12">
+            <span id="shadow-label">12:00</span>
+          </div>
+        </div>
+        <p class="hint">Ustawienia cieni i widok z zacienieniem znajdą się również w raporcie PDF.</p>
+        <h3>Legenda</h3>
+        <div class="legend">
+          <div><i class="sw sw-parcel"></i>Analizowana działka</div>
+          <div><i class="sw sw-building"></i>Budynki (kliknij, aby sprawdzić działki)</div>
+          <div><i class="sw sw-selected"></i>Zaznaczony budynek</div>
+          <div><i class="sw sw-match"></i>Działki pod budynkiem</div>
+          <div><i class="sw sw-util-el"></i>Uzbrojenie — energia elektryczna</div>
+          <div><i class="sw sw-util-water"></i>Uzbrojenie — woda</div>
+          <div><i class="sw sw-util-sewer"></i>Uzbrojenie — kanalizacja</div>
+          <div><i class="sw sw-util-gas"></i>Uzbrojenie — gaz</div>
+          <div><i class="sw sw-util-heat"></i>Uzbrojenie — ciepło</div>
+          <div><i class="sw sw-util-tel"></i>Uzbrojenie — telekomunikacja</div>
+          <div><i class="sw sw-shade"></i>Cień budynku</div>
+          <div><i class="sw sw-egib"></i>Działki i budynki (EGiB)</div>
+          <div><i class="sw sw-mpzp"></i>Plany miejscowe (MPZP)</div>
+        </div>
+        <p class="hint">Obarwienie EGiB i MPZP pochodzi z usług WMS GUGiK. Mapę podkładową zmieniasz ikoną 🗺 po prawej stronie mapy. Wszystkie źródła są otwarte i wymagają połączenia z Internetem.</p>
+      </section>
+
+    </main>
+
+    <footer class="side-foot">
+      <span id="status-coords">52.2297, 21.0122</span>
+      <span id="status-zoom">z17</span>
+    </footer>
+  </aside>
+
+  <div id="map-wrap">
+    <div id="map"></div>
+    <div class="map-tools">
+      <button id="btn-basemap" title="Zmień mapę podkładową" aria-expanded="false">🗺</button>
+      <button id="btn-locate" title="Moja lokalizacja">⌖</button>
+      <button id="btn-shadow" title="Włącz cienie budynków">◐</button>
+      <button id="btn-building" title="Zaznacz budynek i sprawdź działki">▣</button>
+      <button id="btn-reset" title="Widok całej Polski">PL</button>
+    </div>
+    <div id="basemap-popover" class="basemap-popover" hidden>
+      <div class="basemap-title">Mapa podkładowa</div>
+      <div class="layer-list" id="base-layers">
+        <label><input type="radio" name="base" value="osmfr" checked><span>Mapa uliczna (OSM France)</span></label>
+        <label><input type="radio" name="base" value="osm"><span>OpenStreetMap (standard)</span></label>
+        <label><input type="radio" name="base" value="dark"><span>Mapa ciemna (OSM — styl CSS)</span></label>
+        <label><input type="radio" name="base" value="otm"><span>Mapa topograficzna (OpenTopoMap)</span></label>
+        <label><input type="radio" name="base" value="orto"><span>Ortofotomapa (GUGiK)</span></label>
+      </div>
+    </div>
+    <div id="toast" class="toast" hidden></div>
+  </div>
+</div>
+
+<section id="report" aria-hidden="true"></section>
+
+<script src="vendor/leaflet.js?v=1.0.0"></script>
+<script src="vendor/suncalc.min.js?v=1.0.0"></script>
+<script src="web-bridge.js?v=1.0.0"></script>
+<script src="app.js?v=1.0.0"></script>
+</body>
+</html>
