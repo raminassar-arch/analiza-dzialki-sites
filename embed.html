@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#175c46">
-<title>Analiza działki — osadzanie w Google Sites</title>
+<title>Analiza terenu — osadzanie w Google Sites</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <style>
   :root{
@@ -45,7 +45,7 @@
 <body>
 <header>
   <div class="wrap">
-    <h1>Analiza działki — osadzanie w Google Sites</h1>
+    <h1>Analiza terenu — osadzanie w Google Sites</h1>
     <p>Statyczna wersja WWW. Ten plik nie jest częścią aplikacji — to pomocnik z gotowym kodem osadzenia.</p>
   </div>
 </header>
@@ -77,7 +77,7 @@
   <section class="panel">
     <h2>3. Podgląd</h2>
     <div class="frame-box">
-      <iframe id="preview" title="Podgląd — Analiza działki"></iframe>
+      <iframe id="preview" title="Podgląd — Analiza terenu"></iframe>
     </div>
     <p class="hint">Podgląd działa najpewniej, gdy ten plik jest otwarty z tego samego hostingu
       co aplikacja, np. <code>https://raminassar-arch.github.io/analiza-dzialki-sites/embed.html</code>.</p>
@@ -86,9 +86,9 @@
   <section class="panel">
     <h2>Ważne o wersji WWW</h2>
     <div class="warn">
-      <strong>PDF przez okno druku przeglądarki.</strong> Raport powstaje w oknie druku — wybierz
-      „Zapisz jako PDF”. W ramce Google Sites niektóre przeglądarki drukują całą stronę,
-      dlatego obok ramki warto dodać odnośnik „Otwórz aplikację w nowej karcie”.
+      <strong>PDF pobierany bezpośrednio.</strong> Po kliknięciu „Generuj raport PDF” plik
+      zapisuje się w folderze pobierania przeglądarki — nie otwiera się okno druku.
+      Dzięki temu raport działa również wewnątrz ramki Google Sites.
     </div>
     <div class="note">
       <strong>Dane otwarte, bez klucza.</strong> Aplikacja korzysta z GUGiK (ULDK, EGiB, MPZP),
@@ -121,7 +121,7 @@
   }
   function code(src) {
     return '<iframe src="' + src + '"\n' +
-      '        title="Analiza działki — mapa i raport"\n' +
+      '        title="Analiza terenu — mapa i raport"\n' +
       '        style="width:100%;height:1000px;border:0;display:block"\n' +
       '        allow="geolocation; clipboard-write"></iframe>';
   }

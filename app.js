@@ -1,10 +1,10 @@
-/* Analiza działki — static web application built on open data.
+/* Analiza terenu — static web application built on open data.
    Sources: GUGiK (ULDK, EGiB, MPZP), GUS BDL, OpenStreetMap (Photon, Nominatim, Overpass),
    SunCalc (sun position). No API key, no backend. */
 
 const $ = id => document.getElementById(id);
 const POLAND = [[49.0, 14.1], [54.9, 24.2]];
-const UA = 'AnalizaDzialki/1.0 (web; open data)';
+const UA = 'AnalizaTerenU/1.1 (web; open data)';
 const KIMP = 'https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego';
 /* Categories of utility networks shown as a controllable layer and in the report. */
 const UTIL = {
@@ -36,7 +36,9 @@ const overlays = {
   mpzp: L.tileLayer.wms('https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego',
     { layers: 'raster,wektor-str,wektor-lin,wektor-pow,wektor-pkt', format: 'image/png', transparent: true, opacity: 0.7, maxZoom: 20, attribution: 'MPZP: GUGiK' })
 };
-baseLayers.osmfr.addTo(map);
+/* Standard OSM tiles are used by default — the OSM France style blocks
+   hotlinking from browsers/GitHub Pages and leaves the map empty. */
+baseLayers.osm.addTo(map);
 overlays.egib.addTo(map);
 
 const selection = L.layerGroup().addTo(map);
@@ -890,7 +892,7 @@ async function renderSitePlan(a, scale, radiusM, paper = {}, withShade = false) 
   const centre = ringCenter(a.parcel?.ring) || [a.lat, a.lon];
   const cos = Math.cos(centre[0] * Math.PI / 180);
   let z = Math.ceil(Math.log2(156543.03392804097 * cos / mPx));
-  z = Math.max(0, Math.min(19, z));                // OSM France tiles end at z19
+  z = Math.max(0, Math.min(19, z));                // standard OSM tiles end at z19
   const nativeMpp = 156543.03392804097 * cos / Math.pow(2, z);
   const c = llToWorld(centre[0], centre[1], z);
   const srcW = W * mPx / nativeMpp, srcH = H * mPx / nativeMpp;
@@ -908,15 +910,19 @@ async function renderSitePlan(a, scale, radiusM, paper = {}, withShade = false) 
   for (let tx = tx0; tx <= Math.floor((sx + srcW) / TILE); tx++) {
     for (let ty = Math.floor(sy / TILE); ty <= Math.floor((sy + srcH) / TILE); ty++) {
       tasks.push((async () => {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
         try {
           // Standard OSM tiles: open CORS, no key, works directly in the browser.
-          const r = await fetch(`https://tile.openstreetmap.org/${z}/${tx}/${ty}.png`);
+          const r = await fetch(`https://tile.openstreetmap.org/${z}/${tx}/${ty}.png`,
+            { signal: ctrl.signal });
           if (!r.ok) throw new Error('HTTP ' + r.status);
           const bmp = await createImageBitmap(await r.blob());
           ctx.drawImage(bmp, (tx * TILE - sx) * k, (ty * TILE - sy) * k, TILE * k, TILE * k);
           if (bmp.close) bmp.close();
           tilesOk++;
         } catch (e) { tilesFail++; }
+        finally { clearTimeout(timer); }
       })());
     }
   }
@@ -1045,6 +1051,206 @@ function objectListHtml(radiusM) {
   return h;
 }
 
+/* ------------------------------------------------------- browser PDF generation */
+/* The web build creates the PDF locally with jsPDF and downloads it directly.
+   This avoids the browser print dialog, which is unreliable in an iframe
+   (Google Sites) and can block the page. A font with Polish glyphs is embedded
+   so ą/ć/ę/ł/ń/ś/ź/ż survive in the saved file. */
+const PDF_MM = { w: 210, h: 297, m: 12, cw: 186 };
+const PDF_INK = [31, 36, 33], PDF_GREEN = [23, 92, 70], PDF_MUTE = [105, 113, 106];
+const PDF_LINE = [223, 229, 222], PDF_NOTE = [249, 246, 236];
+let pdfY = PDF_MM.m;
+
+function pdfTextOf(el) {
+  return (el?.textContent || '').replace(/\s+/g, ' ').trim();
+}
+function pdfNeed(doc, h) {
+  if (pdfY + h > PDF_MM.h - PDF_MM.m) { doc.addPage(); pdfY = PDF_MM.m; }
+}
+function pdfDrawText(doc, text, x, y, w, size, style, color, lineH) {
+  doc.setFont('DejaVu', style || 'normal');
+  doc.setFontSize(size);
+  doc.setTextColor(color[0], color[1], color[2]);
+  const lines = Array.isArray(text) ? text : doc.splitTextToSize(String(text), w);
+  lines.forEach((ln, i) => doc.text(ln, x, y + i * lineH + lineH - size * 0.18));
+  return lines.length * lineH;
+}
+function pdfH1(doc, text) {
+  pdfNeed(doc, 13);
+  pdfDrawText(doc, text, PDF_MM.m, pdfY, PDF_MM.cw, 18, 'bold', PDF_GREEN, 9);
+  pdfY += 9;
+  doc.setDrawColor(PDF_GREEN[0], PDF_GREEN[1], PDF_GREEN[2]);
+  doc.setLineWidth(0.6);
+  doc.line(PDF_MM.m, pdfY, PDF_MM.m + PDF_MM.cw, pdfY);
+  pdfY += 4;
+}
+function pdfH2(doc, text) {
+  pdfNeed(doc, 9);
+  pdfDrawText(doc, text, PDF_MM.m, pdfY, PDF_MM.cw, 11, 'bold', PDF_GREEN, 5);
+  pdfY += 5;
+  doc.setDrawColor(PDF_LINE[0], PDF_LINE[1], PDF_LINE[2]);
+  doc.setLineWidth(0.3);
+  doc.line(PDF_MM.m, pdfY, PDF_MM.m + PDF_MM.cw, pdfY);
+  pdfY += 4;
+}
+function pdfParagraph(doc, el) {
+  const text = pdfTextOf(el);
+  if (!text) return;
+  if (el.classList.contains('note')) {
+    doc.setFont('DejaVu', 'normal');
+    doc.setFontSize(8);
+    const lines = doc.splitTextToSize(text, PDF_MM.cw - 7);
+    const h = lines.length * 3.4 + 5;
+    pdfNeed(doc, h);
+    doc.setFillColor(PDF_NOTE[0], PDF_NOTE[1], PDF_NOTE[2]);
+    doc.setDrawColor(222, 211, 173);
+    doc.roundedRect(PDF_MM.m, pdfY, PDF_MM.cw, h, 2, 2, 'FD');
+    pdfDrawText(doc, lines, PDF_MM.m + 3.5, pdfY + 2.5, PDF_MM.cw - 7, 8, 'normal', PDF_MUTE, 3.4);
+    pdfY += h + 3;
+    return;
+  }
+  doc.setFont('DejaVu', 'normal');
+  doc.setFontSize(9);
+  const lines = doc.splitTextToSize(text, PDF_MM.cw);
+  const h = lines.length * 4 + 3;
+  pdfNeed(doc, h);
+  pdfDrawText(doc, lines, PDF_MM.m, pdfY, PDF_MM.cw, 9, 'normal', PDF_INK, 4);
+  pdfY += h;
+}
+function pdfFigure(doc, fig) {
+  const img = fig.querySelector('img');
+  if (!img || !/^data:image\//.test(img.src || '')) return;
+  const cap = pdfTextOf(fig.querySelector('figcaption'));
+  doc.setFont('DejaVu', 'normal');
+  doc.setFontSize(8);
+  const capLines = cap ? doc.splitTextToSize(cap, PDF_MM.cw) : [];
+  const imgH = PDF_MM.cw * 160 / 190;
+  const h = imgH + 2 + capLines.length * 3.3 + 4;
+  pdfNeed(doc, h);
+  doc.addImage(img.src, 'PNG', PDF_MM.m, pdfY, PDF_MM.cw, imgH);
+  pdfY += imgH + 2;
+  if (capLines.length) {
+    pdfDrawText(doc, capLines, PDF_MM.m, pdfY, PDF_MM.cw, 8, 'normal', PDF_MUTE, 3.3);
+    pdfY += capLines.length * 3.3;
+  }
+  pdfY += 4;
+}
+function pdfTiles(doc, el) {
+  const tiles = [...el.querySelectorAll('.tile')];
+  if (!tiles.length) return;
+  const cols = tiles.length >= 3 ? 2 : tiles.length;
+  const gap = 3, cw = (PDF_MM.cw - gap * (cols - 1)) / cols;
+  doc.setFont('DejaVu', 'normal');
+  doc.setFontSize(7.5);
+  const items = tiles.map(t => {
+    const sub = doc.splitTextToSize(pdfTextOf(t.querySelector('.tile-sub')), cw - 6).slice(0, 2);
+    return {
+      title: pdfTextOf(t.querySelector('.tile-title')),
+      val: pdfTextOf(t.querySelector('.tile-val')),
+      sub, h: 15 + sub.length * 3.2
+    };
+  });
+  for (let i = 0; i < items.length; i += cols) {
+    const row = items.slice(i, i + cols), rh = Math.max(...row.map(x => x.h));
+    pdfNeed(doc, rh + 3);
+    row.forEach((it, j) => {
+      const x = PDF_MM.m + j * (cw + gap);
+      doc.setFillColor(250, 252, 250);
+      doc.setDrawColor(PDF_LINE[0], PDF_LINE[1], PDF_LINE[2]);
+      doc.roundedRect(x, pdfY, cw, rh, 2, 2, 'FD');
+      pdfDrawText(doc, it.title, x + 3, pdfY + 2, cw - 6, 8, 'normal', PDF_GREEN, 4);
+      pdfDrawText(doc, it.val, x + 3, pdfY + 7, cw - 6, 13, 'bold', PDF_INK, 6);
+      pdfDrawText(doc, it.sub, x + 3, pdfY + rh - 2 - it.sub.length * 3.2, cw - 6, 7.5, 'normal', PDF_MUTE, 3.2);
+    });
+    pdfY += rh + 3;
+  }
+}
+function pdfTable(doc, table) {
+  const rows = [...table.querySelectorAll('tr')];
+  if (!rows.length) return;
+  const cols = Math.max(...rows.map(r => r.children.length));
+  let widths;
+  if (cols === 2) {
+    const a = Math.min(58, PDF_MM.cw * 0.34);
+    widths = [a, PDF_MM.cw - a];
+  } else if (cols === 3) {
+    widths = [PDF_MM.cw * 0.26, PDF_MM.cw * 0.37, PDF_MM.cw * 0.37];
+  } else {
+    widths = Array(cols).fill(PDF_MM.cw / cols);
+  }
+  doc.setFont('DejaVu', 'normal');
+  doc.setFontSize(8);
+  const prep = rows.map(r => Array.from({ length: cols }, (_, ci) => {
+    const cell = r.children[ci];
+    return doc.splitTextToSize(pdfTextOf(cell) || '-', widths[ci] - 3);
+  }));
+  const hasHead = !!rows[0].querySelector('th');
+  const rowH = cells => Math.max(1, ...cells.map(l => l.length)) * 3.4 + 3;
+  const drawRow = (cells, isHead) => {
+    const h = rowH(cells);
+    if (isHead) doc.setFillColor(238, 244, 238);
+    else doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(PDF_LINE[0], PDF_LINE[1], PDF_LINE[2]);
+    doc.setLineWidth(0.15);
+    let x = PDF_MM.m;
+    cells.forEach((lines, ci) => {
+      doc.rect(x, pdfY, widths[ci], h, 'FD');
+      pdfDrawText(doc, lines, x + 1.5, pdfY + 1.5, widths[ci] - 3, 8,
+        isHead ? 'bold' : 'normal', isHead ? PDF_GREEN : PDF_INK, 3.4);
+      x += widths[ci];
+    });
+    pdfY += h;
+  };
+  if (hasHead) drawRow(prep[0], true);
+  prep.slice(hasHead ? 1 : 0).forEach(cells => {
+    const need = rowH(cells) + (hasHead ? rowH(prep[0]) : 0);
+    const before = doc.getNumberOfPages();
+    pdfNeed(doc, need);
+    if (hasHead && doc.getNumberOfPages() !== before) drawRow(prep[0], true);
+    drawRow(cells, false);
+  });
+  pdfY += 4;
+}
+function downloadPdf() {
+  const JsPDF = window.jspdf?.jsPDF;
+  if (!JsPDF) { toast('Nie wczytano biblioteki PDF.'); return false; }
+  try {
+    const doc = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    const font = String(window.ANALIZA_PDF_FONT || '');
+    if (!font) throw new Error('brak fontu z polskimi znakami');
+    doc.addFileToVFS('DejaVuSans.ttf', font.includes(',') ? font.split(',')[1] : font);
+    doc.addFont('DejaVuSans.ttf', 'DejaVu', 'normal');
+    doc.addFont('DejaVuSans.ttf', 'DejaVu', 'bold');
+    doc.setFont('DejaVu', 'normal');
+    pdfY = PDF_MM.m;
+    const report = $('report');
+    [...report.children].forEach(node => {
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'h1') pdfH1(doc, pdfTextOf(node));
+      else if (tag === 'h2') pdfH2(doc, pdfTextOf(node));
+      else if (tag === 'p') pdfParagraph(doc, node);
+      else if (tag === 'figure') pdfFigure(doc, node);
+      else if (tag === 'table') pdfTable(doc, node);
+      else if (tag === 'div' && node.classList.contains('tiles')) pdfTiles(doc, node);
+      else if (pdfTextOf(node)) pdfParagraph(doc, node);
+    });
+    const pages = doc.getNumberOfPages();
+    for (let p = 1; p <= pages; p++) {
+      doc.setPage(p);
+      doc.setFont('DejaVu', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(140, 148, 141);
+      doc.text('Analiza terenu · ' + new Date().toLocaleDateString('pl-PL'), PDF_MM.m, PDF_MM.h - 6);
+      doc.text('Strona ' + p + ' / ' + pages, PDF_MM.w - PDF_MM.m, PDF_MM.h - 6, { align: 'right' });
+    }
+    doc.save('Analiza_terenu_' + new Date().toISOString().slice(0, 10) + '.pdf');
+    return true;
+  } catch (e) {
+    toast('Błąd tworzenia PDF: ' + e.message);
+    return false;
+  }
+}
+
 async function makePdf() {
   if (!A) return;
   const btn = $('pdf-btn');
@@ -1074,7 +1280,7 @@ async function makePdf() {
       <figure class="site-plan"><img src="${shaded.dataUrl}" alt="Widok działki z cieniami budynków">
       <figcaption>Cienie: ${sh.day}, godz. ${sh.time}. Widok dodawany do raportu niezależnie od przełącznika cieni na mapie (na mapie: ${shadeOn ? 'włączone' : 'wyłączone'}). Skala 1:${scale} na papierze A4.</figcaption></figure>`;
     const dt = new Date().toLocaleDateString('pl-PL');
-    $('report').innerHTML = `<h1>Raport analizy działki</h1>
+    $('report').innerHTML = `<h1>Raport analizy terenu</h1>
       <p class="note">Wygenerowano ${dt}. Źródła: GUGiK (ULDK, EGiB, MPZP), GUS BDL, OpenStreetMap, SunCalc.
       Cienie budynków: ${shadeSettings().text}.
       Raport informacyjny; nie zastępuje wypisu z MPZP ani decyzji organu.</p>` + figures + analysisHtml() + objectListHtml(radiusM);
@@ -1084,7 +1290,7 @@ async function makePdf() {
     })));
   } catch (e) {
     figures = `<p class="note">Nie udało się przygotować widoku mapy: ${escapeHtml(e.message)}</p>` + figures;
-    $('report').innerHTML = `<h1>Raport analizy działki</h1>` + figures + analysisHtml() +
+    $('report').innerHTML = `<h1>Raport analizy terenu</h1>` + figures + analysisHtml() +
       objectListHtml(+($('plan-radius')?.value || 300));
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '📄 Generuj raport PDF'; }
@@ -1092,9 +1298,8 @@ async function makePdf() {
   if (window.desktop?.savePdf) {
     window.desktop.savePdf().then(p => toast(p ? 'Zapisano: ' + p : 'Anulowano zapis'))
       .catch(e => toast('Błąd zapisu PDF: ' + e.message));
-  } else {
-    toast('W oknie druku wybierz „Zapisz jako PDF”. W Google Sites wygodniej jest otworzyć aplikację w nowej karcie.');
-    window.print();
+  } else if (downloadPdf()) {
+    toast('Pobrano raport PDF. Plik zapisano w folderze pobierania przeglądarki.');
   }
 }
 

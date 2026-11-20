@@ -1,12 +1,13 @@
-# Analiza działki — wersja WWW (statyczna)
+# Analiza terenu — wersja WWW (statyczna)
 
-Statyczna wersja aplikacji **Analiza działki**: same pliki HTML, CSS i JavaScript.
+Statyczna wersja aplikacji **Analiza terenu**: same pliki HTML, CSS i JavaScript.
 Działa na GitHub Pages, dowolnym hostingu statycznym oraz jako osadzenie
 w **Google Sites**. Nie wymaga Electrona, Pythona, serwera ani kluczy API.
 
-Silnik analizy (`app.js`) i wygląd (`styles.css`) są tymi samymi plikami co
-w wersji desktopowej. Różni się tylko warstwa hostingu: PDF powstaje w oknie
-druku przeglądarki, a `web-bridge.js` zastępuje most Electrona.
+Silnik analizy (`app.js`) i wygląd (`styles.css`) wywodzą się z wersji
+desktopowej. Wersja WWW generuje i pobiera PDF lokalnie w przeglądarce
+(jsPDF z osadzonym fontem z polskimi znakami), więc działa także w ramce
+Google Sites. `web-bridge.js` zastępuje most Electrona.
 
 ## Adresy publikacji
 
@@ -24,12 +25,12 @@ zapobiega przetwarzaniu przez Jekyll.
 | Plik | Rola |
 | --- | --- |
 | `index.html` | interfejs aplikacji — kartowy panel, mapa, pasek postępu, legenda |
-| `app.js` | analiza działki, zapytania do otwartych źródeł, cienie, uzbrojenie, raport |
+| `app.js` | analiza terenu, zapytania do otwartych źródeł, cienie, uzbrojenie, raport PDF |
 | `styles.css` | design: jasne karty, butelkowa zieleń, nagłówki wielkimi literami, linie podziału |
 | `site.css` | adaptacja układu do karty przeglądarki / ramki Google Sites |
-| `web-bridge.js` | marked `ANALIZA_DZIALKI_WEB`, obsługa nieoczekiwanych błędów pobierania |
+| `web-bridge.js` | marker `ANALIZA_TERENU_WEB`, obsługa nieoczekiwanych błędów pobierania |
 | `embed.html` | generator kodu iframe dla Google Sites + podgląd |
-| `vendor/` | lokalne Leaflet, SunCalc i zasoby ikon — bez CDN |
+| `vendor/` | lokalne Leaflet, SunCalc, jsPDF, font DejaVu i ikony — bez CDN |
 | `favicon.svg` | zielony znak PL |
 
 ## Funkcje
@@ -43,7 +44,8 @@ zapobiega przetwarzaniu przez Jekyll.
 - nasłonecznienie i cienie budynków z SunCalc, sterowanie w „Warstwach”,
 - pasek postępu z etapami, procentem i licznikiem pobranych danych,
 - pięć podkładów map (OSM France, OSM, ciemny OSM, OpenTopoMap, ortofotomapa GUGiK),
-- raport PDF z widokiem sytuacyjnym 1:500 / 1:1000, cieniami i listą obiektów.
+- raport PDF pobierany bezpośrednio do pliku, z widokiem sytuacyjnym 1:500 / 1:1000,
+  cieniami i listą obiektów (bez okna druku).
 
 ## Źródła danych
 
@@ -63,7 +65,7 @@ Repozytorium `analiza-dzialki-sites` jest publiczne. Po zmianie plików:
 
 ```powershell
 git add .
-git commit -m "Analiza działki WWW — aktualizacja"
+git commit -m "Analiza terenu WWW — aktualizacja"
 git push origin main
 ```
 
@@ -71,7 +73,7 @@ Jeśli Pages nie jest jeszcze włączone: **Settings → Pages → Build and dep
 → Source: Deploy from a branch → Branch: `main`, folder: `/ (root)` → Save**.
 
 Po zmianach w `app.js`, `styles.css`, `site.css` lub `web-bridge.js` podnieś
-sufiks `?v=1.0.1` w `index.html`, aby przeglądarki nie trzymały starych plików
+sufiks `?v=1.1.0` w `index.html`, aby przeglądarki nie trzymały starych plików
 z pamięci podręcznej (GitHub Pages ustawia `Cache-Control: max-age=600`).
 
 ## Osadzenie w Google Sites
@@ -85,13 +87,14 @@ Gotowy kod:
 
 ```html
 <iframe src="https://raminassar-arch.github.io/analiza-dzialki-sites/"
-        title="Analiza działki — mapa i raport"
+        title="Analiza terenu — mapa i raport"
         style="width:100%;height:1000px;border:0;display:block"
         allow="geolocation; clipboard-write"></iframe>
 ```
 
-Warto dodać obok ramki odnośnik „Otwórz aplikację w nowej karcie” — w części
-przeglądarek drukowanie z wnętrza ramki Google Sites obejmuje całą stronę.
+Warto dodać obok ramki odnośnik „Otwórz aplikację w nowej karcie” — wygodniej
+się pracuje na większym ekranie. Sam raport PDF pobiera się poprawnie także
+z wnętrza ramki.
 
 ## Ograniczenia wersji WWW
 
