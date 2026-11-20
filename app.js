@@ -406,7 +406,9 @@ async function getParcelsUnderBuilding(building) {
   return { parcels, err: errors[0] || '' };
 }
 
+/* Public Overpass mirrors with open CORS — tried in order until one answers. */
 const OVERPASS_HOSTS = [
+  'https://overpass.osm.ch/api/interpreter',
   'https://overpass.openstreetmap.fr/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass-api.de/api/interpreter'
