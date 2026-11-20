@@ -73,7 +73,7 @@ Jeśli Pages nie jest jeszcze włączone: **Settings → Pages → Build and dep
 → Source: Deploy from a branch → Branch: `main`, folder: `/ (root)` → Save**.
 
 Po zmianach w `app.js`, `styles.css`, `site.css` lub `web-bridge.js` podnieś
-sufiks `?v=1.1.0` w `index.html`, aby przeglądarki nie trzymały starych plików
+sufiks `?v=1.1.1` w `index.html`, aby przeglądarki nie trzymały starych plików
 z pamięci podręcznej (GitHub Pages ustawia `Cache-Control: max-age=600`).
 
 ## Osadzenie w Google Sites
