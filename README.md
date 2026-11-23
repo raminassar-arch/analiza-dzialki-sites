@@ -8,7 +8,7 @@ Silnik analizy (`app.js`) i wygląd (`styles.css`) wywodzą się z wersji
 desktopowej. Wersja WWW generuje i pobiera PDF lokalnie w przeglądarce
 (jsPDF z osadzonym fontem z polskimi znakami), więc działa także w ramce
 Google Sites. `web-bridge.js` zastępuje most Electrona. Wersja WWW potrafi też
-wyeksportować wybrany kwadrat 1 km² do prawdziwego pliku DWG — plik jest
+wyeksportować wybrany kwadrat 1, 2, 4 lub 6 km² do prawdziwego pliku DWG — plik jest
 budowany i pobierany bezpośrednio w przeglądarce.
 
 ## Adresy publikacji
@@ -28,7 +28,7 @@ zapobiega przetwarzaniu przez Jekyll.
 | --- | --- |
 | `index.html` | interfejs aplikacji — kartowy panel, mapa, pasek postępu, legenda |
 | `app.js` | analiza terenu, zapytania do otwartych źródeł, cienie, uzbrojenie, raport PDF |
-| `dwg-export.js` | wybór obszaru 1 km², pobieranie danych i budowa dokumentu DWG w przeglądarce |
+| `dwg-export.js` | wybór obszaru 1/2/4/6 km², pobieranie danych i budowa dokumentu DWG w przeglądarce |
 | `styles.css` | design: jasne karty, butelkowa zieleń, nagłówki wielkimi literami, linie podziału |
 | `site.css` | adaptacja układu do karty przeglądarki / ramki Google Sites |
 | `web-bridge.js` | marker `ANALIZA_TERENU_WEB`, obsługa nieoczekiwanych błędów pobierania |
@@ -49,10 +49,13 @@ zapobiega przetwarzaniu przez Jekyll.
 - pięć podkładów map (OSM France, OSM, ciemny OSM, OpenTopoMap, ortofotomapa GUGiK),
 - raport PDF pobierany bezpośrednio do pliku, z widokiem sytuacyjnym 1:500 / 1:1000,
   cieniami i listą obiektów (bez okna druku),
-- **eksport DWG wybranego obszaru 1 km²** — przycisk na górze panelu, kliknięcie środka
-  na mapie (podgląd zasięgu, `Esc` anuluje), własny pasek postępu i bezpośrednie pobranie
-  pliku `AC1021` (EPSG:2180, metry) z warstwami `GRANICA`, `DZIALKI` (ULDK, próbkowanie
-  100 m), `BUDYNKI`, `DROGI`, `UZBROJENIE`, `OBIEKTY`, `UZYTKOWANIE`, `INFO` (OSM).
+- **eksport DWG wybranego obszaru 1, 2, 4 lub 6 km²** — lista powierzchni i przycisk na górze
+  panelu, kliknięcie środka na mapie (podgląd zasięgu, `Esc` anuluje), własny pasek postępu
+  i bezpośrednie pobranie pliku `AC1024` / AutoCAD 2010 (EPSG:2180, metry) z warstwami
+  `GRANICA`, `DZIALKI` (ULDK, próbkowanie 100–150 m), `BUDYNKI`, `DROGI`, `UZBROJENIE`,
+  `OBIEKTY`, `UZYTKOWANIE`, `INFO` (OSM). `AC1024` zastępuje wcześniejszy `AC1021`,
+  który w części CAD kończył się błędem „Drawing file is not valid”; nowy format
+  zachowuje polskie znaki w tekstach.
 
 ## Źródła danych
 
@@ -80,7 +83,7 @@ Jeśli Pages nie jest jeszcze włączone: **Settings → Pages → Build and dep
 → Source: Deploy from a branch → Branch: `main`, folder: `/ (root)` → Save**.
 
 Po zmianach w `app.js`, `dwg-export.js`, `styles.css`, `site.css` lub `web-bridge.js` podnieś
-sufiks `?v=1.2.0` w `index.html`, aby przeglądarki nie trzymały starych plików
+sufiks `?v=1.2.1` w `index.html`, aby przeglądarki nie trzymały starych plików
 z pamięci podręcznej (GitHub Pages ustawia `Cache-Control: max-age=600`).
 
 ## Osadzenie w Google Sites

@@ -1,14 +1,14 @@
-/* Analiza terenu — eksport wybranego obszaru 1 km x 1 km do prawdziwego DWG.
+/* Analiza terenu — eksport wybranego obszaru 1/2/4/6 km² do prawdziwego DWG.
    Dane: GUGiK ULDK (działki), OpenStreetMap Overpass (budynki, drogi, media,
    obiekty, użytkowanie). Geometria w PUWG 1992 (EPSG:2180), jednostki: metry. */
 
 (function () {
   'use strict';
 
-  const SIDE_M = 1000;
-  const HALF_M = SIDE_M / 2;
+  const AREA_OPTIONS = [1, 2, 4, 6];
+  const DEFAULT_AREA = 1;
   const SAMPLE_M = 100;
-  const CONCURRENCY = 8;
+  const CONCURRENCY = 10;
   const OVERPASS_HOSTS = [
     'https://overpass.openstreetmap.fr/api/interpreter',
     'https://overpass-api.de/api/interpreter',
@@ -22,7 +22,7 @@
   let busy = false;
 
   const LAYERS = [
-    { name: 'GRANICA',    color: 5,  desc: 'Granica eksportowanego obszaru 1 km x 1 km' },
+    { name: 'GRANICA',    color: 5,  desc: 'Granica eksportowanego obszaru (kwadrat)' },
     { name: 'DZIALKI',    color: 3,  desc: 'Działki ewidencyjne (GUGiK ULDK)' },
     { name: 'BUDYNKI',    color: 1,  desc: 'Budynki (OpenStreetMap)' },
     { name: 'DROGI',      color: 8,  desc: 'Drogi i linie kolejowe (OpenStreetMap)' },
@@ -51,27 +51,68 @@
     if (show) setProgress(2, 'Przygotowuję obszar…');
   }
 
-  function areaBounds(lat, lon) {
-    const dLat = HALF_M / 111320;
-    const dLon = dLat / Math.max(0.05, Math.cos(lat * Math.PI / 180));
-    return { south: lat - dLat, north: lat + dLat, west: lon - dLon, east: lon + dLon };
+  function normalizeArea(area) {
+    const n = Number(area == null ? DEFAULT_AREA : area);
+    return AREA_OPTIONS.indexOf(n) !== -1 ? n : DEFAULT_AREA;
+  }
+  function selectedArea() {
+    return normalizeArea(el('dwg-area')?.value);
+  }
+  function sideMeters(area) {
+    return Math.sqrt(normalizeArea(area == null ? selectedArea() : area)) * 1000;
+  }
+  function areaLabel(area) {
+    return String(normalizeArea(area)).replace('.', ',');
+  }
+  function sampleStep(area) {
+    const a = normalizeArea(area);
+    return a >= 6 ? 150 : a >= 4 ? 125 : SAMPLE_M;
   }
 
-  function boxFromLatLng(latlng) {
-    const b = areaBounds(latlng.lat, latlng.lng);
+  function areaBounds(lat, lon, areaKm2) {
+    const area = normalizeArea(areaKm2 == null ? selectedArea() : areaKm2);
+    const side = sideMeters(area);
+    const dLat = (side / 2) / 111320;
+    const dLon = dLat / Math.max(0.05, Math.cos(lat * Math.PI / 180));
+    return {
+      south: lat - dLat, north: lat + dLat,
+      west: lon - dLon, east: lon + dLon,
+      center: [lat, lon], area, side, sampleM: sampleStep(area)
+    };
+  }
+
+  function boxFromLatLng(latlng, area) {
+    const b = areaBounds(latlng.lat, latlng.lng, area);
     return L.latLngBounds([b.south, b.west], [b.north, b.east]);
+  }
+
+  function updateAreaUi() {
+    const area = selectedArea();
+    const side = Math.round(sideMeters(area));
+    const btn = el('dwg-btn');
+    if (btn) {
+      btn.textContent = '📐 Eksport DWG ' + areaLabel(area) + ' km²';
+      btn.title = 'Wybierz środek obszaru ' + areaLabel(area) + ' km² (' + side + ' × ' + side + ' m) i wyeksportuj do DWG';
+    }
+    const title = el('dwg-progress-title');
+    if (title) title.textContent = 'Eksport DWG ' + areaLabel(area) + ' km²';
+    if (selecting && preview && opts?.map) preview.setBounds(boxFromLatLng(opts.map.getCenter(), area));
   }
 
   function setSelecting(on) {
     selecting = on;
+    const area = selectedArea();
+    const side = Math.round(sideMeters(area));
     const btn = el('dwg-btn');
     if (btn) {
       btn.classList.toggle('active', on);
-      btn.title = on ? 'Anuluj wybór obszaru (Esc)' : 'Wybierz środek obszaru 1 km² i wyeksportuj do DWG';
+      btn.title = on ? 'Anuluj wybór obszaru (Esc)' :
+        'Wybierz środek obszaru ' + areaLabel(area) + ' km² (' + side + ' × ' + side + ' m) i wyeksportuj do DWG';
     }
     if (opts?.map) opts.map.getContainer().style.cursor = on ? 'crosshair' : '';
     if (!on && preview) { preview.remove(); preview = null; }
-    if (on) opts?.toast?.('Kliknij środek obszaru na mapie — zostanie wyeksportowany kwadrat 1 km × 1 km.');
+    if (on) opts?.toast?.('Kliknij środek obszaru na mapie — zostanie wyeksportowany kwadrat ' +
+      areaLabel(area) + ' km² (' + side + ' × ' + side + ' m). Esc anuluje.');
   }
 
   /* Fetch through the desktop IPC when available (some open-data servers do
@@ -127,8 +168,10 @@
   /* --------------------------------------------------------- ULDK parcels */
   async function fetchParcels(bounds, report) {
     const pts = [];
-    for (let la = bounds.south; la <= bounds.north; la += SAMPLE_M / 111320) {
-      for (let lo = bounds.west; lo <= bounds.east; lo += (SAMPLE_M / 111320) / Math.cos(la * Math.PI / 180)) {
+    const stepDeg = (bounds.sampleM || SAMPLE_M) / 111320;
+    for (let la = bounds.south; la <= bounds.north; la += stepDeg) {
+      const stepLon = stepDeg / Math.max(0.05, Math.cos(la * Math.PI / 180));
+      for (let lo = bounds.west; lo <= bounds.east; lo += stepLon) {
         pts.push([la, lo]);
       }
     }
@@ -175,15 +218,17 @@
       `nwr[landuse~"industrial|railway|residential|commercial|retail|grass|forest|farmland"](${b});`,
       `nwr[natural~"water|wood|grassland"](${b});`
     ];
-    return '[out:json][timeout:40];(' + parts.join('') + ');out geom tags;';
+    const timeout = normalizeArea(bounds.area) > 1 ? 90 : 40;
+    return '[out:json][timeout:' + timeout + '];(' + parts.join('') + ');out geom tags;';
   }
 
   async function fetchOsm(bounds) {
     const query = overpassQuery(bounds);
+    const timeout = normalizeArea(bounds.area) > 1 ? 120000 : 60000;
     let last;
     for (const host of OVERPASS_HOSTS) {
       try {
-        const data = await getJson(host + '?data=' + encodeURIComponent(query), 60000);
+        const data = await getJson(host + '?data=' + encodeURIComponent(query), timeout);
         if (Array.isArray(data.elements) && data.elements.length) return data.elements;
         throw new Error('Pusty wynik');
       } catch (e) { last = e; }
@@ -227,7 +272,11 @@
   function buildDwg(bounds, parcels, osm) {
     const A = window.AcadTs;
     if (!A) throw new Error('Brak biblioteki CAD');
-    const doc = new A.CadDocument(A.ACadVersion.AC1021, true);
+    /* AC1024 (AutoCAD 2010) is used instead of AC1021: upstream acad-ts documents
+       that R2007 output was written with an R2004 container and rejected by
+       strict CAD readers as "Drawing file is not valid". AC1024 keeps Unicode
+       text (Polish diacritics) and uses a valid R2010 container. */
+    const doc = new A.CadDocument(A.ACadVersion.AC1024, true);
     doc.header.insUnits = A.UnitsType.Meters;
     const layers = {};
     LAYERS.forEach(def => {
@@ -315,13 +364,19 @@
     /* Metadane w lewym dolnym rogu obszaru */
     const x0 = Math.min(...corners.map(p => p[0])) + 20;
     const y0 = Math.min(...corners.map(p => p[1])) + 20;
+    const area = normalizeArea(bounds.area);
+    const center = bounds.center || [
+      (bounds.south + bounds.north) / 2, (bounds.west + bounds.east) / 2
+    ];
     const lines = [
-      'ANALIZA TERENU — EKSPORT OBSZARU 1 km x 1 km',
-      'Środek: ' + bounds.center[0].toFixed(5) + ', ' + bounds.center[1].toFixed(5) + ' (WGS84)',
+      'ANALIZA TERENU — EKSPORT OBSZARU ' + areaLabel(area) + ' km²',
+      'Bok kwadratu: ' + fmt(sideMeters(area)) + ' m',
+      'Środek: ' + center[0].toFixed(5) + ', ' + center[1].toFixed(5) + ' (WGS84)',
       'Zakres: ' + bounds.south.toFixed(5) + ' .. ' + bounds.north.toFixed(5) +
         ' / ' + bounds.west.toFixed(5) + ' .. ' + bounds.east.toFixed(5),
       'Układ: PUWG 1992 (EPSG:2180), jednostki: metry',
-      'Źródła: GUGiK ULDK (działki, siatka 100 m), OpenStreetMap / Overpass (pozostałe warstwy)',
+      'Źródła: GUGiK ULDK (działki, siatka ' + (bounds.sampleM || SAMPLE_M) + ' m), ' +
+        'OpenStreetMap / Overpass (pozostałe warstwy)',
       'Data eksportu: ' + new Date().toLocaleString('pl-PL'),
       'Działki: ' + parcels.length + ', obiekty OSM: ' + (osm || []).length,
       'Warstwy: ' + LAYERS.map(l => l.name).join(', ')
@@ -360,17 +415,18 @@
   }
 
   /* --------------------------------------------------------------- export */
-  async function exportArea(latlng) {
+  async function exportArea(latlng, areaKm2) {
     if (busy) { opts?.toast?.('Trwa poprzedni eksport DWG.'); return; }
     busy = true;
+    const area = normalizeArea(areaKm2 == null ? selectedArea() : areaKm2);
     const btn = el('dwg-btn');
     if (btn) btn.disabled = true;
+    updateAreaUi();
     showProgress(true);
     const center = [latlng.lat, latlng.lng];
-    const bounds = areaBounds(center[0], center[1]);
-    bounds.center = center;
+    const bounds = areaBounds(center[0], center[1], area);
     try {
-      setProgress(3, 'Pobieram działki z GUGiK ULDK…');
+      setProgress(3, 'Pobieram działki z GUGiK ULDK (' + areaLabel(area) + ' km²)…');
       const parcels = await fetchParcels(bounds, (done, total) => {
         setProgress(3 + 47 * done / total,
           'Pobieram działki ULDK (' + done + '/' + total + ')…');
@@ -383,11 +439,11 @@
       const { buffer, counts } = buildDwg(bounds, parcels, osm);
       setProgress(90, 'Zapisuję plik DWG…');
       const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-      await saveDwg(buffer, 'analiza-terenu-1km2-' + stamp + '.dwg');
+      await saveDwg(buffer, 'analiza-terenu-' + String(area).replace('.', '_') + 'km2-' + stamp + '.dwg');
       setProgress(100, 'Gotowe.');
       const total = Object.values(counts).reduce((a, b) => a + b, 0);
-      opts?.toast?.('Eksport DWG zakończony: ' + parcels.length + ' działek, ' +
-        osm.length + ' obiektów OSM, ' + total + ' elementów CAD.');
+      opts?.toast?.('Eksport DWG ' + areaLabel(area) + ' km² zakończony: ' + parcels.length +
+        ' działek, ' + osm.length + ' obiektów OSM, ' + total + ' elementów CAD.');
       setTimeout(() => showProgress(false), 1600);
     } catch (e) {
       showProgress(false);
@@ -403,25 +459,30 @@
     opts = options || {};
     if (!opts.map) return;
     const btn = el('dwg-btn');
+    const areaSel = el('dwg-area');
+    if (areaSel) areaSel.addEventListener('change', updateAreaUi);
     if (btn) btn.onclick = () => setSelecting(!selecting);
+    updateAreaUi();
     opts.map.on('mousemove', e => {
       if (!selecting || busy) return;
+      const area = selectedArea();
       if (!preview) {
-        preview = L.rectangle(boxFromLatLng(e.latlng), {
+        preview = L.rectangle(boxFromLatLng(e.latlng, area), {
           color: '#7c3aed', weight: 2, dashArray: '6 6', fillOpacity: 0.06,
           interactive: false
         }).addTo(opts.map);
       } else {
-        preview.setBounds(boxFromLatLng(e.latlng));
+        preview.setBounds(boxFromLatLng(e.latlng, area));
       }
     });
     opts.map.on('click', e => {
       if (!selecting || busy) return;
       const center = [e.latlng.lat, e.latlng.lng];
+      const area = selectedArea();
       /* The application's own map-click handler must not start a new analysis
          while the DWG area is being picked. */
       setTimeout(() => setSelecting(false), 0);
-      exportArea({ lat: center[0], lng: center[1] });
+      exportArea({ lat: center[0], lng: center[1] }, area);
     });
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && selecting) setSelecting(false);
@@ -433,6 +494,8 @@
     isSelecting: () => selecting,
     exportArea,
     areaBounds,
+    selectedArea,
+    sideMeters,
     parseWkt,
     buildDwg,
     LAYERS
