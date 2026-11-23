@@ -51,11 +51,11 @@ zapobiega przetwarzaniu przez Jekyll.
   cieniami i listą obiektów (bez okna druku),
 - **eksport DWG wybranego obszaru 1, 2, 4 lub 6 km²** — lista powierzchni i przycisk na górze
   panelu, kliknięcie środka na mapie (podgląd zasięgu, `Esc` anuluje), własny pasek postępu
-  i bezpośrednie pobranie pliku `AC1024` / AutoCAD 2010 (EPSG:2180, metry) z warstwami
-  `GRANICA`, `DZIALKI` (ULDK, próbkowanie 100–150 m), `BUDYNKI`, `DROGI`, `UZBROJENIE`,
-  `OBIEKTY`, `UZYTKOWANIE`, `INFO` (OSM). `AC1024` zastępuje wcześniejszy `AC1021`,
-  który w części CAD kończył się błędem „Drawing file is not valid”; nowy format
-  zachowuje polskie znaki w tekstach.
+  i bezpośrednie pobranie pliku `AC1024` / AutoCAD 2010 (EPSG:2180, metry). Wszystkie warstwy
+  mają prefiks `BIMRN_AR_`: `GRANICA`, `DZIALKI` (ULDK, próbkowanie 100–150 m),
+  `ZAGOSPODAROWANIE`, `BUDYNKI`, `DROGI`, `ZBROJENIE`, `MIEJSCA_PARKINGOWE`, `OBIEKTY`,
+  `UZYTKOWANIE`, `INFO` (OSM). `AC1024` zastępuje wcześniejszy `AC1021`, który w części CAD
+  kończył się błędem „Drawing file is not valid”; nowy format zachowuje polskie znaki w tekstach.
 
 ## Źródła danych
 
@@ -83,7 +83,7 @@ Jeśli Pages nie jest jeszcze włączone: **Settings → Pages → Build and dep
 → Source: Deploy from a branch → Branch: `main`, folder: `/ (root)` → Save**.
 
 Po zmianach w `app.js`, `dwg-export.js`, `styles.css`, `site.css` lub `web-bridge.js` podnieś
-sufiks `?v=1.2.1` w `index.html`, aby przeglądarki nie trzymały starych plików
+sufiks `?v=1.3.0` w `index.html`, aby przeglądarki nie trzymały starych plików
 z pamięci podręcznej (GitHub Pages ustawia `Cache-Control: max-age=600`).
 
 ## Osadzenie w Google Sites

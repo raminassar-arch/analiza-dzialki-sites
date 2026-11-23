@@ -1,6 +1,7 @@
 /* Analiza terenu — eksport wybranego obszaru 1/2/4/6 km² do prawdziwego DWG.
-   Dane: GUGiK ULDK (działki), OpenStreetMap Overpass (budynki, drogi, media,
-   obiekty, użytkowanie). Geometria w PUWG 1992 (EPSG:2180), jednostki: metry. */
+   Dane: GUGiK ULDK (działki), OpenStreetMap Overpass (budynki, drogi, zbrojenie,
+   obiekty, użytkowanie, miejsca parkingowe). Geometria w PUWG 1992 (EPSG:2180),
+   jednostki: metry. Wszystkie warstwy CAD mają prefiks BIMRN_AR_. */
 
 (function () {
   'use strict';
@@ -9,6 +10,7 @@
   const DEFAULT_AREA = 1;
   const SAMPLE_M = 100;
   const CONCURRENCY = 10;
+  const LAYER_PREFIX = 'BIMRN_AR_';
   const OVERPASS_HOSTS = [
     'https://overpass.openstreetmap.fr/api/interpreter',
     'https://overpass-api.de/api/interpreter',
@@ -21,16 +23,24 @@
   let preview = null;
   let busy = false;
 
-  const LAYERS = [
-    { name: 'GRANICA',    color: 5,  desc: 'Granica eksportowanego obszaru (kwadrat)' },
-    { name: 'DZIALKI',    color: 3,  desc: 'Działki ewidencyjne (GUGiK ULDK)' },
-    { name: 'BUDYNKI',    color: 1,  desc: 'Budynki (OpenStreetMap)' },
-    { name: 'DROGI',      color: 8,  desc: 'Drogi i linie kolejowe (OpenStreetMap)' },
-    { name: 'UZBROJENIE', color: 30, desc: 'Uzbrojenie — energetyka, woda, kanalizacja, gaz, ciepło, telekom (OSM)' },
-    { name: 'OBIEKTY',    color: 4,  desc: 'Obiekty i punkty zainteresowania (OpenStreetMap)' },
-    { name: 'UZYTKOWANIE',color: 94, desc: 'Użytkowanie terenu (OpenStreetMap)' },
-    { name: 'INFO',       color: 7,  desc: 'Opis źródeł i parametrów eksportu' }
+  const LAYER_DEFS = [
+    { key: 'GRANICA',            color: 5,  desc: 'Granica eksportowanego obszaru (kwadrat)' },
+    { key: 'DZIALKI',            color: 3,  desc: 'Działki ewidencyjne (GUGiK ULDK)' },
+    { key: 'ZAGOSPODAROWANIE',   color: 82, desc: 'Zagospodarowanie — zbiorcza warstwa działek, budynków, dróg, terenów i parkingów' },
+    { key: 'BUDYNKI',            color: 1,  desc: 'Budynki (OpenStreetMap)' },
+    { key: 'DROGI',              color: 8,  desc: 'Drogi i linie kolejowe (OpenStreetMap)' },
+    { key: 'ZBROJENIE',          color: 30, desc: 'Zbrojenie terenu — energetyka, woda, kanalizacja, gaz, ciepło, telekom (OSM)' },
+    { key: 'MIEJSCA_PARKINGOWE', color: 6,  desc: 'Miejsca parkingowe i parkingi (OpenStreetMap)' },
+    { key: 'OBIEKTY',            color: 4,  desc: 'Obiekty i punkty zainteresowania (OpenStreetMap)' },
+    { key: 'UZYTKOWANIE',        color: 94, desc: 'Użytkowanie terenu (OpenStreetMap)' },
+    { key: 'INFO',               color: 7,  desc: 'Opis źródeł i parametrów eksportu' }
   ];
+  const LAYERS = LAYER_DEFS.map(d => ({
+    key: d.key, name: LAYER_PREFIX + d.key, color: d.color, desc: d.desc
+  }));
+  const LN = {};
+  LAYERS.forEach(l => { LN[l.key] = l.name; });
+  function layerName(key) { return LAYER_PREFIX + key; }
 
   /* ------------------------------------------------------------- helpers */
   function el(id) { return document.getElementById(id); }
@@ -211,8 +221,13 @@
       `way[highway](${b});`,
       `way[railway](${b});`,
       `nwr[power](${b});`,
+      `nwr[utility](${b});`,
       `way[man_made=pipeline](${b});`,
+      `nwr[pipeline](${b});`,
       `nwr[amenity~"water_point|drinking_water|wastewater_plant|water_works|school|kindergarten|pharmacy|clinic|doctors|library|fuel|restaurant|cafe|bar|hospital|bank|post_office"](${b});`,
+      `nwr[amenity~"parking|parking_space|parking_entrance|motorcycle_parking|bicycle_parking"](${b});`,
+      `nwr[parking](${b});`,
+      `way[service=parking_aisle](${b});`,
       `nwr[shop](${b});`,
       `nwr[leisure~"park|playground|garden"](${b});`,
       `nwr[landuse~"industrial|railway|residential|commercial|retail|grass|forest|farmland"](${b});`,
@@ -268,6 +283,29 @@
     return null;
   }
 
+  function parkingCategory(t) {
+    const a = String(t.amenity || '').toLowerCase();
+    if (a === 'parking' || a === 'parking_space' || a === 'parking_entrance' ||
+        a === 'motorcycle_parking' || a === 'bicycle_parking') return a;
+    if (t.parking || t.capacity || t['parking:lane'] || t.service === 'parking_aisle') {
+      return 'parking';
+    }
+    return null;
+  }
+
+  function parkingLabel(t, cat) {
+    const parts = [];
+    if (t.name) parts.push(String(t.name));
+    if (t.capacity) parts.push('Miejsc: ' + t.capacity);
+    if (t.parking) parts.push('Rodzaj: ' + String(t.parking).replace(/_/g, ' '));
+    if (cat === 'parking_space') parts.push('Miejsce');
+    if (cat === 'parking_entrance') parts.push('Wjazd');
+    if (cat === 'bicycle_parking') parts.push('Rowery');
+    if (cat === 'motorcycle_parking') parts.push('Motocykle');
+    if (t.access) parts.push('Dostęp: ' + t.access);
+    return parts.join(' — ') || 'Miejsce parkingowe';
+  }
+
   /* ------------------------------------------------------------- DWG build */
   function buildDwg(bounds, parcels, osm) {
     const A = window.AcadTs;
@@ -287,24 +325,35 @@
     });
     const counts = {};
     LAYERS.forEach(d => counts[d.name] = 0);
-    const add = (layerName, entity) => {
-      entity.layer = layers[layerName];
+    const add = (layerRef, entity) => {
+      entity.layer = layers[layerRef];
       doc.modelSpace.entities.add(entity);
-      counts[layerName]++;
+      counts[layerRef]++;
     };
-    const poly = (layerName, points, closed) => {
+    const poly = (layerRef, points, closed) => {
       if (!points || points.length < 2) return;
       const verts = points.map(p => new A.LwPolylineVertex(new A.XY(p[0], p[1])));
       const e = new A.LwPolyline(verts);
       e.isClosed = !!closed;
-      add(layerName, e);
+      add(layerRef, e);
     };
-    const text = (layerName, value, p, height) => {
+    const point = (layerRef, p) => {
+      if (!p) return;
+      add(layerRef, new A.Point(new A.XYZ(p[0], p[1], 0)));
+    };
+    const text = (layerRef, value, p, height) => {
       if (!p || !value) return;
       const e = new A.TextEntity(String(value).slice(0, 120));
       e.insertPoint = new A.XYZ(p[0], p[1], 0);
       e.height = height || 8;
-      add(layerName, e);
+      add(layerRef, e);
+    };
+    /* Zbiorcza warstwa zagospodarowania — kopiuje wybrane obiekty powierzchniowe. */
+    const development = (points, closed, label) => {
+      if (!points || !points.length) return;
+      if (points.length > 1) poly(LN.ZAGOSPODAROWANIE, points, closed);
+      else point(LN.ZAGOSPODAROWANIE, points[0]);
+      if (label) text(LN.ZAGOSPODAROWANIE, label, points[0], 6);
     };
 
     /* Granica obszaru */
@@ -312,14 +361,17 @@
       xy(bounds.south, bounds.west), xy(bounds.south, bounds.east),
       xy(bounds.north, bounds.east), xy(bounds.north, bounds.west)
     ];
-    poly('GRANICA', corners.concat([corners[0]]), false);
+    poly(LN.GRANICA, corners.concat([corners[0]]), false);
+    development(corners, true, '');
 
     /* Działki ULDK */
     parcels.forEach(pc => {
+      const number = pc.number || pc.id.split('.').pop();
       pc.geometry.rings.forEach((ring, i) => {
         const pts = ring.map(([x, y]) => [x, y]);
-        poly('DZIALKI', pts, true);
-        if (i === 0) text('DZIALKI', pc.number || pc.id.split('.').pop(), ringCentroid(pts), 10);
+        poly(LN.DZIALKI, pts, true);
+        development(pts, true, i === 0 ? number : '');
+        if (i === 0) text(LN.DZIALKI, number, ringCentroid(pts), 10);
       });
     });
 
@@ -330,34 +382,48 @@
       if (!ll.length) return;
       const pts = ll.map(([la, lo]) => xy(la, lo));
       const label = t.name || t.ref || t.operator || '';
+      const parking = parkingCategory(t);
 
+      if (parking) {
+        const pLabel = parkingLabel(t, parking);
+        const closed = e.type === 'way' && !t.highway;
+        if (pts.length > 1) poly(LN.MIEJSCA_PARKINGOWE, pts, closed);
+        else point(LN.MIEJSCA_PARKINGOWE, pts[0]);
+        text(LN.MIEJSCA_PARKINGOWE, pLabel, pts[0], 6);
+        development(pts, closed, pLabel);
+        return;
+      }
       if (e.type === 'way' && t.building) {
-        poly('BUDYNKI', pts, true);
-        if (label) text('BUDYNKI', label, ringCentroid(pts), 6);
+        poly(LN.BUDYNKI, pts, true);
+        if (label) text(LN.BUDYNKI, label, ringCentroid(pts), 6);
+        development(pts, true, label || 'Budynek');
         return;
       }
       if (e.type === 'way' && (t.highway || t.railway)) {
-        poly('DROGI', pts, false);
-        if (t.highway && label) text('DROGI', label, pts[Math.floor(pts.length / 2)], 7);
+        poly(LN.DROGI, pts, false);
+        if (t.highway && label) text(LN.DROGI, label, pts[Math.floor(pts.length / 2)], 7);
+        development(pts, false, label || (t.railway ? 'Linia kolejowa' : 'Droga'));
         return;
       }
-      if (utilCategory(t)) {
-        const cat = utilCategory(t);
-        if (pts.length > 1) poly('UZBROJENIE', pts, false);
-        else add('UZBROJENIE', new A.Point(new A.XYZ(pts[0][0], pts[0][1], 0)));
+      const util = utilCategory(t);
+      if (util) {
+        if (pts.length > 1) poly(LN.ZBROJENIE, pts, false);
+        else point(LN.ZBROJENIE, pts[0]);
         const names = { el: 'energia', water: 'woda', sewer: 'kanalizacja', gas: 'gaz', heat: 'ciepło', tel: 'telekomunikacja' };
-        text('UZBROJENIE', (names[cat] || cat) + (label ? ' — ' + label : ''), pts[0], 6);
+        text(LN.ZBROJENIE, (names[util] || util) + (label ? ' — ' + label : ''), pts[0], 6);
         return;
       }
       if (t.landuse || t.natural || t.leisure) {
-        poly('UZYTKOWANIE', pts, e.type === 'way');
-        if (label) text('UZYTKOWANIE', label, ringCentroid(pts), 6);
+        poly(LN.UZYTKOWANIE, pts, e.type === 'way');
+        if (label) text(LN.UZYTKOWANIE, label, ringCentroid(pts), 6);
+        development(pts, e.type === 'way', label || 'Użytkowanie terenu');
         return;
       }
       if (label) {
-        if (pts.length > 1) poly('OBIEKTY', pts, false);
-        else add('OBIEKTY', new A.Point(new A.XYZ(pts[0][0], pts[0][1], 0)));
-        text('OBIEKTY', label, pts[0], 6);
+        if (pts.length > 1) poly(LN.OBIEKTY, pts, false);
+        else point(LN.OBIEKTY, pts[0]);
+        text(LN.OBIEKTY, label, pts[0], 6);
+        development(pts, false, label);
       }
     });
 
@@ -375,13 +441,16 @@
       'Zakres: ' + bounds.south.toFixed(5) + ' .. ' + bounds.north.toFixed(5) +
         ' / ' + bounds.west.toFixed(5) + ' .. ' + bounds.east.toFixed(5),
       'Układ: PUWG 1992 (EPSG:2180), jednostki: metry',
+      'Prefiks warstw: ' + LAYER_PREFIX,
       'Źródła: GUGiK ULDK (działki, siatka ' + (bounds.sampleM || SAMPLE_M) + ' m), ' +
         'OpenStreetMap / Overpass (pozostałe warstwy)',
       'Data eksportu: ' + new Date().toLocaleString('pl-PL'),
       'Działki: ' + parcels.length + ', obiekty OSM: ' + (osm || []).length,
+      'Zagospodarowanie: ' + counts[LN.ZAGOSPODAROWANIE] +
+        ', miejsca parkingowe: ' + counts[LN.MIEJSCA_PARKINGOWE],
       'Warstwy: ' + LAYERS.map(l => l.name).join(', ')
     ];
-    lines.forEach((line, i) => text('INFO', line, [x0, y0 + i * 16], 7));
+    lines.forEach((line, i) => text(LN.INFO, line, [x0, y0 + i * 16], 7));
 
     return { buffer: A.DwgWriter.writeToBuffer(doc), counts };
   }
@@ -498,6 +567,8 @@
     sideMeters,
     parseWkt,
     buildDwg,
+    LAYER_PREFIX,
+    layerName,
     LAYERS
   };
 })();
