@@ -323,20 +323,31 @@
        annotative (MultiLeader MText) z reprezentacjami dla 1:500 i 1:1000. */
     const ANNOT_SCALES = [['1:500', 1, 500], ['1:1000', 1, 1000]];
     const root = doc.rootDictionary;
+    /* 281=1 (KeepExisting) jest wymagane przez AutoCAD dla słowników
+       z listą skal i zmiennymi adnotacji. */
+    root.clonningFlags = 1;
     let scaleDict = root.getEntry(A.CadDictionary.acadScaleList);
     if (!scaleDict) { scaleDict = new A.CadDictionary(A.CadDictionary.acadScaleList); root.add(scaleDict); }
+    scaleDict.clonningFlags = 1;
     const scales = new A.ScaleCollection(scaleDict);
     scales.createDefaults();
     ANNOT_SCALES.forEach(([n, p, d]) => {
       const s = new A.Scale(n); s.paperUnits = p; s.drawingUnits = d; s.isUnitScale = false; scales.add(s);
     });
     doc.scales = scales; doc.registerCollection(scales);
+    /* Relacje ACAD_REACTORS i flagi 281=1 odwzorowują strukturę słowników
+       w plikach tworzonych przez AutoCAD (skala jest widoczna na liście). */
+    scaleDict.addReactor(root);
+    for (const s of scales) s.addReactor(scaleDict);
     let varDict = root.getEntry(A.CadDictionary.variableDictionary);
     if (!varDict) { varDict = new A.CadDictionary(A.CadDictionary.variableDictionary); root.add(varDict); }
+    varDict.clonningFlags = 1;
     const vars = new A.DictionaryVariableCollection(varDict);
     vars.createDefaults();
     doc.dictionaryVariables = vars; doc.registerCollection(vars);
     vars.addOrUpdateVariable(A.DictionaryVariable.currentAnnotationScale, '1:500');
+    varDict.addReactor(root);
+    for (const v of vars) v.addReactor(varDict);
 
     /* Styl TrueType (Arial), aby polskie znaki diakrytyczne renderowały się w CAD. */
     const textStyle = new A.TextStyle('BIMRN_AR');
@@ -390,17 +401,25 @@
     const text = (layerRef, value, p, paperH) => {
       if (!p || !value) return;
       const str = String(value).slice(0, 200);
-      const h = paperH || 2.5;
+      const hPaper = paperH || 2.5;
+      /* AutoCAD przechowuje w kontekście MLEADER wysokość już przeskalowaną do
+         modelu (char_height = papier_mm × mianownik skali). Kontekst bazowy
+         zostaje przy 1:1 (bezpieczny fallback, gdy CANNOSCALE nie zostanie
+         zaakceptowane), a reprezentacje 1:500/1:1000 mają wysokości modelu. */
       const ml = new A.MultiLeader();
       ml.contentType = A.LeaderContentType.MText; ml.enableAnnotationScale = true; ml.scaleFactor = 1;
       ml.pathType = A.MultiLeaderPathType.Invisible; ml.enableDogleg = false; ml.enableLanding = false; ml.arrowheadSize = 0;
       ml.textStyle = textStyle; ml.textColor = A.Color.byLayer; ml.lineWeight = A.LineWeightType.ByLayer;
-      fillCtx(ml.contextData, p[0], p[1], str, h);
-      ml.contextData.scale = scales.get('1:500');
+      fillCtx(ml.contextData, p[0], p[1], str, hPaper);
+      ml.contextData.scale = scales.get('1:1');
       const xd = new A.CadDictionary(); ml.xDictionary = xd;
       const ad = new A.CadDictionary('ACAD_ANNOTSCALE'); xd.addByKey('ACAD_ANNOTSCALE', ad);
-      ANNOT_SCALES.forEach(([n]) => {
-        const rep = ml.contextData.clone(); rep.scale = scales.get(n); rep.textStyle = textStyle; ad.addByKey(n, rep);
+      [['1:1', 1, 1], ...ANNOT_SCALES].forEach(([n, pu, du]) => {
+        const rep = ml.contextData.clone();
+        rep.scale = scales.get(n);
+        rep.textHeight = hPaper * du;
+        rep.textStyle = textStyle;
+        ad.addByKey(n, rep);
       });
       add(layerRef, ml);
     };
@@ -520,7 +539,7 @@
       text(LN.LEGENDA, def.name + '  (' + mm + ' mm · ' + counts[def.name] + ')  —  ' + def.desc, [x0 + SW + 3, ty], 3);
       ty += LH;
     });
-    text(LN.LEGENDA, 'Opisy annotative: 1:500 i 1:1000 (CANNOSCALE 1:500). Grubości linii wg warstw (ByLayer).', [x0, ty], 3); ty += LH;
+    text(LN.LEGENDA, 'Opisy annotative: 1:1 (baza), 1:500 i 1:1000. W CAD ustaw CANNOSCALE 1:500/1:1000. Grubości linii wg warstw (ByLayer).', [x0, ty], 3); ty += LH;
     text(LN.LEGENDA, 'Warstwy INFO i LEGENDA to adnotacje. Wszystkie warstwy mają prefiks ' + LAYER_PREFIX + '.', [x0, ty], 3);
 
     return { buffer: A.DwgWriter.writeToBuffer(doc), counts };
