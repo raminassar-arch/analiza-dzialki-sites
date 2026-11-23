@@ -54,7 +54,10 @@ zapobiega przetwarzaniu przez Jekyll.
   i bezpośrednie pobranie pliku `AC1024` / AutoCAD 2010 (EPSG:2180, metry). Wszystkie warstwy
   mają prefiks `BIMRN_AR_`: `GRANICA`, `DZIALKI` (ULDK, próbkowanie 100–150 m),
   `ZAGOSPODAROWANIE`, `BUDYNKI`, `DROGI`, `ZBROJENIE`, `MIEJSCA_PARKINGOWE`, `OBIEKTY`,
-  `UZYTKOWANIE`, `INFO` (OSM). `AC1024` zastępuje wcześniejszy `AC1021`, który w części CAD
+  `UZYTKOWANIE`, `INFO`, `LEGENDA` (OSM). Opisy są **annotative** (skale 1:500 i 1:1000,
+  `CANNOSCALE` 1:500) — stały rozmiar na wydruku; grubości linii dobrane per warstwa
+  (`ByLayer`, 0,13–0,50 mm). Warstwa `LEGENDA` zawiera próbkę koloru/grubości i opis
+  zawartości każdej warstwy. `AC1024` zastępuje wcześniejszy `AC1021`, który w części CAD
   kończył się błędem „Drawing file is not valid”; nowy format zachowuje polskie znaki w tekstach.
 
 ## Źródła danych
@@ -83,7 +86,7 @@ Jeśli Pages nie jest jeszcze włączone: **Settings → Pages → Build and dep
 → Source: Deploy from a branch → Branch: `main`, folder: `/ (root)` → Save**.
 
 Po zmianach w `app.js`, `dwg-export.js`, `styles.css`, `site.css` lub `web-bridge.js` podnieś
-sufiks `?v=1.3.0` w `index.html`, aby przeglądarki nie trzymały starych plików
+sufiks `?v=1.4.0` w `index.html`, aby przeglądarki nie trzymały starych plików
 z pamięci podręcznej (GitHub Pages ustawia `Cache-Control: max-age=600`).
 
 ## Osadzenie w Google Sites
@@ -126,4 +129,4 @@ Potem otwórz `http://localhost:8000/`. Nie otwieraj `index.html` przez
 
 ---
 
-Rami Nassar · © 2026 · wersja WWW 1.0.1
+Rami Nassar · © 2026 · wersja WWW 1.4.0

@@ -23,20 +23,22 @@
   let preview = null;
   let busy = false;
 
+  /* lineWeight = setna część milimetra (50 → 0,50 mm); encja dziedziczy ją przez ByLayer. */
   const LAYER_DEFS = [
-    { key: 'GRANICA',            color: 5,  desc: 'Granica eksportowanego obszaru (kwadrat)' },
-    { key: 'DZIALKI',            color: 3,  desc: 'Działki ewidencyjne (GUGiK ULDK)' },
-    { key: 'ZAGOSPODAROWANIE',   color: 82, desc: 'Zagospodarowanie — zbiorcza warstwa działek, budynków, dróg, terenów i parkingów' },
-    { key: 'BUDYNKI',            color: 1,  desc: 'Budynki (OpenStreetMap)' },
-    { key: 'DROGI',              color: 8,  desc: 'Drogi i linie kolejowe (OpenStreetMap)' },
-    { key: 'ZBROJENIE',          color: 30, desc: 'Zbrojenie terenu — energetyka, woda, kanalizacja, gaz, ciepło, telekom (OSM)' },
-    { key: 'MIEJSCA_PARKINGOWE', color: 6,  desc: 'Miejsca parkingowe i parkingi (OpenStreetMap)' },
-    { key: 'OBIEKTY',            color: 4,  desc: 'Obiekty i punkty zainteresowania (OpenStreetMap)' },
-    { key: 'UZYTKOWANIE',        color: 94, desc: 'Użytkowanie terenu (OpenStreetMap)' },
-    { key: 'INFO',               color: 7,  desc: 'Opis źródeł i parametrów eksportu' }
+    { key: 'GRANICA',            color: 5,  lineWeight: 50, desc: 'Granica eksportowanego obszaru (kwadrat)' },
+    { key: 'DZIALKI',            color: 3,  lineWeight: 25, desc: 'Działki ewidencyjne (GUGiK ULDK)' },
+    { key: 'ZAGOSPODAROWANIE',   color: 82, lineWeight: 18, desc: 'Zagospodarowanie — zbiorcza warstwa działek, budynków, dróg, terenów i parkingów' },
+    { key: 'BUDYNKI',            color: 1,  lineWeight: 35, desc: 'Budynki (OpenStreetMap)' },
+    { key: 'DROGI',              color: 8,  lineWeight: 25, desc: 'Drogi i linie kolejowe (OpenStreetMap)' },
+    { key: 'ZBROJENIE',          color: 30, lineWeight: 18, desc: 'Zbrojenie terenu — energetyka, woda, kanalizacja, gaz, ciepło, telekom (OSM)' },
+    { key: 'MIEJSCA_PARKINGOWE', color: 6,  lineWeight: 18, desc: 'Miejsca parkingowe i parkingi (OpenStreetMap)' },
+    { key: 'OBIEKTY',            color: 4,  lineWeight: 13, desc: 'Obiekty i punkty zainteresowania (OpenStreetMap)' },
+    { key: 'UZYTKOWANIE',        color: 94, lineWeight: 13, desc: 'Użytkowanie terenu (OpenStreetMap)' },
+    { key: 'INFO',               color: 7,  lineWeight: 13, desc: 'Opis źródeł i parametrów eksportu' },
+    { key: 'LEGENDA',            color: 7,  lineWeight: 13, desc: 'Legenda warstw i opis zawartości rysunku' }
   ];
   const LAYERS = LAYER_DEFS.map(d => ({
-    key: d.key, name: LAYER_PREFIX + d.key, color: d.color, desc: d.desc
+    key: d.key, name: LAYER_PREFIX + d.key, color: d.color, lineWeight: d.lineWeight, desc: d.desc
   }));
   const LN = {};
   LAYERS.forEach(l => { LN[l.key] = l.name; });
@@ -316,10 +318,37 @@
        text (Polish diacritics) and uses a valid R2010 container. */
     const doc = new A.CadDocument(A.ACadVersion.AC1024, true);
     doc.header.insUnits = A.UnitsType.Meters;
+
+    /* Skale annotative: lista skal (ACAD_SCALELIST) + CANNOSCALE. Opisy są
+       annotative (MultiLeader MText) z reprezentacjami dla 1:500 i 1:1000. */
+    const ANNOT_SCALES = [['1:500', 1, 500], ['1:1000', 1, 1000]];
+    const root = doc.rootDictionary;
+    let scaleDict = root.getEntry(A.CadDictionary.acadScaleList);
+    if (!scaleDict) { scaleDict = new A.CadDictionary(A.CadDictionary.acadScaleList); root.add(scaleDict); }
+    const scales = new A.ScaleCollection(scaleDict);
+    scales.createDefaults();
+    ANNOT_SCALES.forEach(([n, p, d]) => {
+      const s = new A.Scale(n); s.paperUnits = p; s.drawingUnits = d; s.isUnitScale = false; scales.add(s);
+    });
+    doc.scales = scales; doc.registerCollection(scales);
+    let varDict = root.getEntry(A.CadDictionary.variableDictionary);
+    if (!varDict) { varDict = new A.CadDictionary(A.CadDictionary.variableDictionary); root.add(varDict); }
+    const vars = new A.DictionaryVariableCollection(varDict);
+    vars.createDefaults();
+    doc.dictionaryVariables = vars; doc.registerCollection(vars);
+    vars.addOrUpdateVariable(A.DictionaryVariable.currentAnnotationScale, '1:500');
+
+    /* Styl TrueType (Arial), aby polskie znaki diakrytyczne renderowały się w CAD. */
+    const textStyle = new A.TextStyle('BIMRN_AR');
+    textStyle.filename = 'Arial';
+    textStyle.height = 0;
+    doc.textStyles.add(textStyle);
+
     const layers = {};
     LAYERS.forEach(def => {
       const layer = new A.Layer(def.name);
       layer.color = new A.Color(def.color);
+      layer.lineWeight = def.lineWeight;
       doc.layers.add(layer);
       layers[def.name] = layer;
     });
@@ -335,25 +364,52 @@
       const verts = points.map(p => new A.LwPolylineVertex(new A.XY(p[0], p[1])));
       const e = new A.LwPolyline(verts);
       e.isClosed = !!closed;
+      e.lineWeight = A.LineWeightType.ByLayer;
       add(layerRef, e);
     };
     const point = (layerRef, p) => {
       if (!p) return;
-      add(layerRef, new A.Point(new A.XYZ(p[0], p[1], 0)));
-    };
-    const text = (layerRef, value, p, height) => {
-      if (!p || !value) return;
-      const e = new A.TextEntity(String(value).slice(0, 120));
-      e.insertPoint = new A.XYZ(p[0], p[1], 0);
-      e.height = height || 8;
+      const e = new A.Point(new A.XYZ(p[0], p[1], 0));
+      e.lineWeight = A.LineWeightType.ByLayer;
       add(layerRef, e);
+    };
+    /* Opis annotative: MultiLeader (MText) z reprezentacjami skal w słowniku
+       ACAD_ANNOTSCALE. paperH = wysokość papierowa w mm; wysokość w modelu =
+       paperH × mianownik skali (tekst ma stały rozmiar na wydruku). */
+    const fillCtx = (ctx, x, y, str, h) => {
+      ctx.scaleFactor = 1; ctx.hasTextContents = true; ctx.textLabel = str; ctx.textHeight = h;
+      ctx.textLocation = new A.XYZ(x, y, 0); ctx.contentBasePoint = new A.XYZ(x, y, 0); ctx.basePoint = new A.XYZ(x, y, 0);
+      ctx.textNormal = new A.XYZ(0, 0, 1); ctx.direction = new A.XYZ(1, 0, 0);
+      ctx.textAlignment = A.TextAlignmentType.Left;
+      ctx.textLeftAttachment = A.TextAttachmentType.MiddleOfText;
+      ctx.textRightAttachment = A.TextAttachmentType.MiddleOfText;
+      ctx.textColor = A.Color.byLayer; ctx.textStyle = textStyle;
+      const rr = new A.LeaderRoot(); rr.connectionPoint = new A.XYZ(x, y, 0); rr.direction = new A.XYZ(1, 0, 0); rr.contentValid = true;
+      const ll = new A.LeaderLine(); ll.points = [new A.XYZ(x, y, 0), new A.XYZ(x, y, 0)]; rr.lines.push(ll); ctx.leaderRoots.push(rr);
+    };
+    const text = (layerRef, value, p, paperH) => {
+      if (!p || !value) return;
+      const str = String(value).slice(0, 200);
+      const h = paperH || 2.5;
+      const ml = new A.MultiLeader();
+      ml.contentType = A.LeaderContentType.MText; ml.enableAnnotationScale = true; ml.scaleFactor = 1;
+      ml.pathType = A.MultiLeaderPathType.Invisible; ml.enableDogleg = false; ml.enableLanding = false; ml.arrowheadSize = 0;
+      ml.textStyle = textStyle; ml.textColor = A.Color.byLayer; ml.lineWeight = A.LineWeightType.ByLayer;
+      fillCtx(ml.contextData, p[0], p[1], str, h);
+      ml.contextData.scale = scales.get('1:500');
+      const xd = new A.CadDictionary(); ml.xDictionary = xd;
+      const ad = new A.CadDictionary('ACAD_ANNOTSCALE'); xd.addByKey('ACAD_ANNOTSCALE', ad);
+      ANNOT_SCALES.forEach(([n]) => {
+        const rep = ml.contextData.clone(); rep.scale = scales.get(n); rep.textStyle = textStyle; ad.addByKey(n, rep);
+      });
+      add(layerRef, ml);
     };
     /* Zbiorcza warstwa zagospodarowania — kopiuje wybrane obiekty powierzchniowe. */
     const development = (points, closed, label) => {
       if (!points || !points.length) return;
       if (points.length > 1) poly(LN.ZAGOSPODAROWANIE, points, closed);
       else point(LN.ZAGOSPODAROWANIE, points[0]);
-      if (label) text(LN.ZAGOSPODAROWANIE, label, points[0], 6);
+      if (label) text(LN.ZAGOSPODAROWANIE, label, points[0], 2.5);
     };
 
     /* Granica obszaru */
@@ -371,7 +427,7 @@
         const pts = ring.map(([x, y]) => [x, y]);
         poly(LN.DZIALKI, pts, true);
         development(pts, true, i === 0 ? number : '');
-        if (i === 0) text(LN.DZIALKI, number, ringCentroid(pts), 10);
+        if (i === 0) text(LN.DZIALKI, number, ringCentroid(pts), 3);
       });
     });
 
@@ -389,19 +445,19 @@
         const closed = e.type === 'way' && !t.highway;
         if (pts.length > 1) poly(LN.MIEJSCA_PARKINGOWE, pts, closed);
         else point(LN.MIEJSCA_PARKINGOWE, pts[0]);
-        text(LN.MIEJSCA_PARKINGOWE, pLabel, pts[0], 6);
+        text(LN.MIEJSCA_PARKINGOWE, pLabel, pts[0], 2.5);
         development(pts, closed, pLabel);
         return;
       }
       if (e.type === 'way' && t.building) {
         poly(LN.BUDYNKI, pts, true);
-        if (label) text(LN.BUDYNKI, label, ringCentroid(pts), 6);
+        if (label) text(LN.BUDYNKI, label, ringCentroid(pts), 2.5);
         development(pts, true, label || 'Budynek');
         return;
       }
       if (e.type === 'way' && (t.highway || t.railway)) {
         poly(LN.DROGI, pts, false);
-        if (t.highway && label) text(LN.DROGI, label, pts[Math.floor(pts.length / 2)], 7);
+        if (t.highway && label) text(LN.DROGI, label, pts[Math.floor(pts.length / 2)], 2.5);
         development(pts, false, label || (t.railway ? 'Linia kolejowa' : 'Droga'));
         return;
       }
@@ -410,47 +466,62 @@
         if (pts.length > 1) poly(LN.ZBROJENIE, pts, false);
         else point(LN.ZBROJENIE, pts[0]);
         const names = { el: 'energia', water: 'woda', sewer: 'kanalizacja', gas: 'gaz', heat: 'ciepło', tel: 'telekomunikacja' };
-        text(LN.ZBROJENIE, (names[util] || util) + (label ? ' — ' + label : ''), pts[0], 6);
+        text(LN.ZBROJENIE, (names[util] || util) + (label ? ' — ' + label : ''), pts[0], 2.5);
         return;
       }
       if (t.landuse || t.natural || t.leisure) {
         poly(LN.UZYTKOWANIE, pts, e.type === 'way');
-        if (label) text(LN.UZYTKOWANIE, label, ringCentroid(pts), 6);
+        if (label) text(LN.UZYTKOWANIE, label, ringCentroid(pts), 2.5);
         development(pts, e.type === 'way', label || 'Użytkowanie terenu');
         return;
       }
       if (label) {
         if (pts.length > 1) poly(LN.OBIEKTY, pts, false);
         else point(LN.OBIEKTY, pts[0]);
-        text(LN.OBIEKTY, label, pts[0], 6);
+        text(LN.OBIEKTY, label, pts[0], 2.5);
         development(pts, false, label);
       }
     });
 
-    /* Metadane w lewym dolnym rogu obszaru */
+    /* Metadane + legenda w lewym dolnym rogu obszaru (opisy annotative).
+       Rozstaw w modelu dobrany dla 1:1000 (3 mm papieru → 3 m), bez nakładania. */
     const x0 = Math.min(...corners.map(p => p[0])) + 20;
     const y0 = Math.min(...corners.map(p => p[1])) + 20;
     const area = normalizeArea(bounds.area);
     const center = bounds.center || [
       (bounds.south + bounds.north) / 2, (bounds.west + bounds.east) / 2
     ];
-    const lines = [
+    const LH = 4.5;
+    let ty = y0;
+    const meta = [
       'ANALIZA TERENU — EKSPORT OBSZARU ' + areaLabel(area) + ' km²',
-      'Bok kwadratu: ' + fmt(sideMeters(area)) + ' m',
-      'Środek: ' + center[0].toFixed(5) + ', ' + center[1].toFixed(5) + ' (WGS84)',
-      'Zakres: ' + bounds.south.toFixed(5) + ' .. ' + bounds.north.toFixed(5) +
-        ' / ' + bounds.west.toFixed(5) + ' .. ' + bounds.east.toFixed(5),
-      'Układ: PUWG 1992 (EPSG:2180), jednostki: metry',
-      'Prefiks warstw: ' + LAYER_PREFIX,
-      'Źródła: GUGiK ULDK (działki, siatka ' + (bounds.sampleM || SAMPLE_M) + ' m), ' +
-        'OpenStreetMap / Overpass (pozostałe warstwy)',
+      'Bok kwadratu: ' + fmt(sideMeters(area)) + ' m · Środek: ' + center[0].toFixed(5) + ', ' + center[1].toFixed(5) + ' (WGS84)',
+      'Układ: PUWG 1992 (EPSG:2180) · jednostki: metry · prefiks warstw: ' + LAYER_PREFIX,
+      'Źródła: GUGiK ULDK (działki, siatka ' + (bounds.sampleM || SAMPLE_M) + ' m) · OpenStreetMap / Overpass',
       'Data eksportu: ' + new Date().toLocaleString('pl-PL'),
-      'Działki: ' + parcels.length + ', obiekty OSM: ' + (osm || []).length,
-      'Zagospodarowanie: ' + counts[LN.ZAGOSPODAROWANIE] +
-        ', miejsca parkingowe: ' + counts[LN.MIEJSCA_PARKINGOWE],
-      'Warstwy: ' + LAYERS.map(l => l.name).join(', ')
+      'Działki: ' + parcels.length + ' · obiekty OSM: ' + (osm || []).length +
+        ' · zagospodarowanie: ' + counts[LN.ZAGOSPODAROWANIE] + ' · parkingi: ' + counts[LN.MIEJSCA_PARKINGOWE]
     ];
-    lines.forEach((line, i) => text(LN.INFO, line, [x0, y0 + i * 16], 7));
+    meta.forEach(line => { text(LN.INFO, line, [x0, ty], 3); ty += LH; });
+    ty += LH;
+    /* Legenda warstw — próbka linii (kolor + grubość) i opis zawartości każdej warstwy. */
+    text(LN.LEGENDA, 'LEGENDA WARSTW — CO ZAWIERA RYSUNEK', [x0, ty], 3.5); ty += LH;
+    const SW = 6;
+    LAYERS.filter(d => d.key !== 'INFO' && d.key !== 'LEGENDA').forEach(def => {
+      const sw = new A.LwPolyline([
+        new A.LwPolylineVertex(new A.XY(x0, ty)),
+        new A.LwPolylineVertex(new A.XY(x0 + SW, ty))
+      ]);
+      sw.layer = layers[LN.LEGENDA];
+      sw.color = new A.Color(def.color);
+      sw.lineWeight = def.lineWeight;
+      doc.modelSpace.entities.add(sw); counts[LN.LEGENDA]++;
+      const mm = (def.lineWeight / 100).toFixed(2);
+      text(LN.LEGENDA, def.name + '  (' + mm + ' mm · ' + counts[def.name] + ')  —  ' + def.desc, [x0 + SW + 3, ty], 3);
+      ty += LH;
+    });
+    text(LN.LEGENDA, 'Opisy annotative: 1:500 i 1:1000 (CANNOSCALE 1:500). Grubości linii wg warstw (ByLayer).', [x0, ty], 3); ty += LH;
+    text(LN.LEGENDA, 'Warstwy INFO i LEGENDA to adnotacje. Wszystkie warstwy mają prefiks ' + LAYER_PREFIX + '.', [x0, ty], 3);
 
     return { buffer: A.DwgWriter.writeToBuffer(doc), counts };
   }
