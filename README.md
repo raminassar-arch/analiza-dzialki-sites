@@ -7,7 +7,9 @@ w **Google Sites**. Nie wymaga Electrona, Pythona, serwera ani kluczy API.
 Silnik analizy (`app.js`) i wygląd (`styles.css`) wywodzą się z wersji
 desktopowej. Wersja WWW generuje i pobiera PDF lokalnie w przeglądarce
 (jsPDF z osadzonym fontem z polskimi znakami), więc działa także w ramce
-Google Sites. `web-bridge.js` zastępuje most Electrona.
+Google Sites. `web-bridge.js` zastępuje most Electrona. Wersja WWW potrafi też
+wyeksportować wybrany kwadrat 1 km² do prawdziwego pliku DWG — plik jest
+budowany i pobierany bezpośrednio w przeglądarce.
 
 ## Adresy publikacji
 
@@ -26,11 +28,12 @@ zapobiega przetwarzaniu przez Jekyll.
 | --- | --- |
 | `index.html` | interfejs aplikacji — kartowy panel, mapa, pasek postępu, legenda |
 | `app.js` | analiza terenu, zapytania do otwartych źródeł, cienie, uzbrojenie, raport PDF |
+| `dwg-export.js` | wybór obszaru 1 km², pobieranie danych i budowa dokumentu DWG w przeglądarce |
 | `styles.css` | design: jasne karty, butelkowa zieleń, nagłówki wielkimi literami, linie podziału |
 | `site.css` | adaptacja układu do karty przeglądarki / ramki Google Sites |
 | `web-bridge.js` | marker `ANALIZA_TERENU_WEB`, obsługa nieoczekiwanych błędów pobierania |
 | `embed.html` | generator kodu iframe dla Google Sites + podgląd |
-| `vendor/` | lokalne Leaflet, SunCalc, jsPDF, font DejaVu i ikony — bez CDN |
+| `vendor/` | lokalne Leaflet, SunCalc, jsPDF, font DejaVu, proj4 i `acad-ts` (zapis DWG) — bez CDN |
 | `favicon.svg` | zielony znak PL |
 
 ## Funkcje
@@ -45,7 +48,11 @@ zapobiega przetwarzaniu przez Jekyll.
 - pasek postępu z etapami, procentem i licznikiem pobranych danych,
 - pięć podkładów map (OSM France, OSM, ciemny OSM, OpenTopoMap, ortofotomapa GUGiK),
 - raport PDF pobierany bezpośrednio do pliku, z widokiem sytuacyjnym 1:500 / 1:1000,
-  cieniami i listą obiektów (bez okna druku).
+  cieniami i listą obiektów (bez okna druku),
+- **eksport DWG wybranego obszaru 1 km²** — przycisk na górze panelu, kliknięcie środka
+  na mapie (podgląd zasięgu, `Esc` anuluje), własny pasek postępu i bezpośrednie pobranie
+  pliku `AC1021` (EPSG:2180, metry) z warstwami `GRANICA`, `DZIALKI` (ULDK, próbkowanie
+  100 m), `BUDYNKI`, `DROGI`, `UZBROJENIE`, `OBIEKTY`, `UZYTKOWANIE`, `INFO` (OSM).
 
 ## Źródła danych
 
@@ -72,8 +79,8 @@ git push origin main
 Jeśli Pages nie jest jeszcze włączone: **Settings → Pages → Build and deployment
 → Source: Deploy from a branch → Branch: `main`, folder: `/ (root)` → Save**.
 
-Po zmianach w `app.js`, `styles.css`, `site.css` lub `web-bridge.js` podnieś
-sufiks `?v=1.1.1` w `index.html`, aby przeglądarki nie trzymały starych plików
+Po zmianach w `app.js`, `dwg-export.js`, `styles.css`, `site.css` lub `web-bridge.js` podnieś
+sufiks `?v=1.2.0` w `index.html`, aby przeglądarki nie trzymały starych plików
 z pamięci podręcznej (GitHub Pages ustawia `Cache-Control: max-age=600`).
 
 ## Osadzenie w Google Sites

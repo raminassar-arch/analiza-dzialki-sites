@@ -4,7 +4,7 @@
 
 const $ = id => document.getElementById(id);
 const POLAND = [[49.0, 14.1], [54.9, 24.2]];
-const UA = 'AnalizaTerenU/1.1 (web; open data)';
+const UA = 'AnalizaTerenU/1.2 (web; open data)';
 const KIMP = 'https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego';
 /* Categories of utility networks shown as a controllable layer and in the report. */
 const UTIL = {
@@ -1390,6 +1390,7 @@ map.on('locationerror', () => toast('Nie uzyskano lokalizacji (sprawdź uprawnie
 $('btn-reset').onclick = () => map.fitBounds(POLAND, { animate: false });
 
 map.on('click', e => {
+  if (window.DwgExport?.isSelecting()) return;
   if (buildingPickMode) {
     if (!A?.blds?.length) { toast('Najpierw przeanalizuj działkę, aby zobaczyć budynki.'); return; }
     const pt = [e.latlng.lat, e.latlng.lng];
@@ -1417,5 +1418,12 @@ const updateStatus = () => {
 map.on('mousemove', e => $('status-coords').textContent = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`);
 map.on('zoomend', updateStatus);
 updateStatus();
+
+window.DwgExport?.init({
+  map,
+  toast,
+  getCenter: () => A ? [A.lat, A.lon]
+    : (placeMarker ? [placeMarker.getLatLng().lat, placeMarker.getLatLng().lng] : null)
+});
 
 toast('Gotowe. Wpisz adres lub kliknij mapę, aby rozpocząć analizę.');

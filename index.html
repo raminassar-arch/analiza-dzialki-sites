@@ -10,9 +10,9 @@
 <meta name="description" content="Analiza terenu w wersji WWW — otwarte dane GUGiK, GUS i OpenStreetMap, mapa, nasłonecznienie i raport PDF.">
 <title>Analiza terenu — wersja WWW</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="vendor/leaflet.css?v=1.1.1">
-<link rel="stylesheet" href="styles.css?v=1.1.1">
-<link rel="stylesheet" href="site.css?v=1.1.1">
+<link rel="stylesheet" href="vendor/leaflet.css?v=1.2.0">
+<link rel="stylesheet" href="styles.css?v=1.2.0">
+<link rel="stylesheet" href="site.css?v=1.2.0">
 </head>
 <body>
 <div id="app">
@@ -25,6 +25,7 @@
     </header>
 
     <div class="pdf-top"><button id="pdf-btn" class="primary" disabled>📄 Generuj raport PDF</button></div>
+    <div class="pdf-top"><button id="dwg-btn" class="secondary" title="Wybierz środek obszaru 1 km² i wyeksportuj do DWG">📐 Eksport DWG 1 km²</button></div>
 
     <div class="search-wrap">
       <div class="search-box">
@@ -117,6 +118,7 @@
           <div><i class="sw sw-egib"></i>Działki i budynki (EGiB)</div>
           <div><i class="sw sw-mpzp"></i>Plany miejscowe (MPZP)</div>
         </div>
+        <p class="hint">Eksport DWG 1 km² zawiera warstwy: GRANICA, DZIALKI (GUGiK ULDK), BUDYNKI, DROGI, UZBROJENIE, OBIEKTY, UZYTKOWANIE i INFO (OpenStreetMap). Geometria w PUWG 1992 (metrach).</p>
         <p class="hint">Obarwienie EGiB i MPZP pochodzi z usług WMS GUGiK. Mapę podkładową zmieniasz ikoną 🗺 po prawej stronie mapy. Wszystkie źródła są otwarte i wymagają połączenia z Internetem.</p>
       </section>
 
@@ -147,17 +149,27 @@
         <label><input type="radio" name="base" value="orto"><span>Ortofotomapa (GUGiK)</span></label>
       </div>
     </div>
+    <div id="dwg-progress" class="dwg-progress" hidden>
+      <div class="dwg-progress-head"><strong>Eksport DWG 1 km²</strong><span id="dwg-pct">0%</span></div>
+      <div id="dwg-stage">Przygotowuję obszar…</div>
+      <div id="dwg-track" class="progress-track" role="progressbar" aria-label="Postęp eksportu DWG" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="dwg-bar" class="progress-bar"></div>
+      </div>
+    </div>
     <div id="toast" class="toast" hidden></div>
   </div>
 </div>
 
 <section id="report" aria-hidden="true"></section>
 
-<script src="vendor/leaflet.js?v=1.1.1"></script>
-<script src="vendor/suncalc.min.js?v=1.1.1"></script>
-<script src="vendor/jspdf.umd.min.js?v=1.1.1"></script>
-<script src="vendor/pdf-font.js?v=1.1.1"></script>
-<script src="web-bridge.js?v=1.1.1"></script>
-<script src="app.js?v=1.1.1"></script>
+<script src="vendor/leaflet.js?v=1.2.0"></script>
+<script src="vendor/suncalc.min.js?v=1.2.0"></script>
+<script src="vendor/jspdf.umd.min.js?v=1.2.0"></script>
+<script src="vendor/pdf-font.js?v=1.2.0"></script>
+<script src="web-bridge.js?v=1.2.0"></script>
+<script src="vendor/proj4.js?v=1.2.0"></script>
+<script src="vendor/acad-ts.js?v=1.2.0"></script>
+<script src="dwg-export.js?v=1.2.0"></script>
+<script src="app.js?v=1.2.0"></script>
 </body>
 </html>
