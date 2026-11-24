@@ -410,6 +410,10 @@
       e.height = labelHeight(paperH);
       e.insertPoint = new A.XYZ(p[0], p[1], 0);
       e.attachmentPoint = middleLeft;
+      /* DWG/DXF MTEXT group 11 to wektor kierunku tekstu. Domyślne (0,0,0)
+         z acad-ts jest odrzucane przez AutoCAD jako nieprawidłowe i tekst
+         nie jest renderowany — ustawiamy jednostkowy wektor X (1,0,0). */
+      e.alignmentPoint = new A.XYZ(1, 0, 0);
       e.style = textStyle;
       e.color = A.Color.byLayer;
       e.lineWeight = A.LineWeightType.ByLayer;
