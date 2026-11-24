@@ -23,19 +23,26 @@
   let preview = null;
   let busy = false;
 
-  /* lineWeight = setna część milimetra (50 → 0,50 mm); encja dziedziczy ją przez ByLayer. */
+  /* lineWeight = setna część milimetra (50 → 0,50 mm); encja dziedziczy ją przez ByLayer.
+     Kolory ACI dobrane tak, by rysunek czytał się jak mapa do celów projektowych:
+     budynki czerwone, drogi ciemnoszare, sieci rozdzielone kolorami mediów. */
   const LAYER_DEFS = [
     { key: 'GRANICA',            color: 5,  lineWeight: 50, desc: 'Granica eksportowanego obszaru (kwadrat)' },
-    { key: 'DZIALKI',            color: 3,  lineWeight: 25, desc: 'Działki ewidencyjne (GUGiK ULDK)' },
-    { key: 'ZAGOSPODAROWANIE',   color: 82, lineWeight: 18, desc: 'Zagospodarowanie — zbiorcza warstwa działek, budynków, dróg, terenów i parkingów' },
-    { key: 'BUDYNKI',            color: 1,  lineWeight: 35, desc: 'Budynki (OpenStreetMap)' },
-    { key: 'DROGI',              color: 8,  lineWeight: 25, desc: 'Drogi i linie kolejowe (OpenStreetMap)' },
-    { key: 'ZBROJENIE',          color: 30, lineWeight: 18, desc: 'Zbrojenie terenu — energetyka, woda, kanalizacja, gaz, ciepło, telekom (OSM)' },
-    { key: 'MIEJSCA_PARKINGOWE', color: 6,  lineWeight: 18, desc: 'Miejsca parkingowe i parkingi (OpenStreetMap)' },
-    { key: 'OBIEKTY',            color: 4,  lineWeight: 13, desc: 'Obiekty i punkty zainteresowania (OpenStreetMap)' },
-    { key: 'UZYTKOWANIE',        color: 94, lineWeight: 13, desc: 'Użytkowanie terenu (OpenStreetMap)' },
-    { key: 'INFO',               color: 7,  lineWeight: 13, desc: 'Opis źródeł i parametrów eksportu' },
-    { key: 'LEGENDA',            color: 7,  lineWeight: 13, desc: 'Legenda warstw i opis zawartości rysunku' }
+    { key: 'DZIALKI',            color: 3,  lineWeight: 50, desc: 'Działki ewidencyjne (GUGiK ULDK)' },
+    { key: 'ZAGOSPODAROWANIE',   color: 9,  lineWeight: 50, desc: 'Zagospodarowanie — zbiorcza warstwa działek, budynków, dróg, terenów i parkingów' },
+    { key: 'BUDYNKI',            color: 1,  lineWeight: 50, desc: 'Budynki — czerwone, 0,50 mm (OpenStreetMap)' },
+    { key: 'DROGI',              color: 8,  lineWeight: 50, desc: 'Drogi i linie kolejowe — ciemnoszare, 0,50 mm (OpenStreetMap)' },
+    { key: 'ZBROJENIE_EL',       color: 30, lineWeight: 50, desc: 'Zbrojenie — energetyka, pomarańczowa (OSM)' },
+    { key: 'ZBROJENIE_WODA',     color: 5,  lineWeight: 50, desc: 'Zbrojenie — wodociągi, niebieska (OSM)' },
+    { key: 'ZBROJENIE_KANAL',    color: 6,  lineWeight: 50, desc: 'Zbrojenie — kanalizacja, karmazynowa (OSM)' },
+    { key: 'ZBROJENIE_GAZ',      color: 3,  lineWeight: 50, desc: 'Zbrojenie — gazociągi, zielona (OSM)' },
+    { key: 'ZBROJENIE_CIEPLO',   color: 2,  lineWeight: 50, desc: 'Zbrojenie — ciepłownictwo, żółta (OSM)' },
+    { key: 'ZBROJENIE_TELEKOM',  color: 4,  lineWeight: 50, desc: 'Zbrojenie — telekomunikacja, cyjanowa (OSM)' },
+    { key: 'MIEJSCA_PARKINGOWE', color: 6,  lineWeight: 50, desc: 'Miejsca parkingowe i parkingi — karmazynowe (OpenStreetMap)' },
+    { key: 'OBIEKTY',            color: 4,  lineWeight: 50, desc: 'Obiekty i punkty zainteresowania (OpenStreetMap)' },
+    { key: 'UZYTKOWANIE',        color: 94, lineWeight: 50, desc: 'Użytkowanie terenu (OpenStreetMap)' },
+    { key: 'INFO',               color: 7,  lineWeight: 50, desc: 'Opis źródeł i parametrów eksportu' },
+    { key: 'LEGENDA',            color: 7,  lineWeight: 50, desc: 'Legenda warstw i opis zawartości rysunku' }
   ];
   const LAYERS = LAYER_DEFS.map(d => ({
     key: d.key, name: LAYER_PREFIX + d.key, color: d.color, lineWeight: d.lineWeight, desc: d.desc
@@ -43,6 +50,10 @@
   const LN = {};
   LAYERS.forEach(l => { LN[l.key] = l.name; });
   function layerName(key) { return LAYER_PREFIX + key; }
+  const UTILITY_LAYER = {
+    el: 'ZBROJENIE_EL', water: 'ZBROJENIE_WODA', sewer: 'ZBROJENIE_KANAL',
+    gas: 'ZBROJENIE_GAZ', heat: 'ZBROJENIE_CIEPLO', tel: 'ZBROJENIE_TELEKOM'
+  };
 
   /* ------------------------------------------------------------- helpers */
   function el(id) { return document.getElementById(id); }
@@ -318,9 +329,11 @@
        text (Polish diacritics) and uses a valid R2010 container. */
     const doc = new A.CadDocument(A.ACadVersion.AC1024, true);
     doc.header.insUnits = A.UnitsType.Meters;
+    /* Grubości linii z warstw mają być widoczne także w model space. */
+    doc.header.displayLineWeight = true;
 
-    /* Skale annotative: lista skal (ACAD_SCALELIST) + CANNOSCALE. Opisy są
-       annotative (MultiLeader MText) z reprezentacjami dla 1:500 i 1:1000. */
+    /* Lista skal zostaje w pliku dla wygody użytkownika CAD, ale opisy nie są
+       już annotative — dzięki temu zawsze są widoczne niezależnie od CANNOSCALE. */
     const ANNOT_SCALES = [['1:500', 1, 500], ['1:1000', 1, 1000]];
     const root = doc.rootDictionary;
     /* 281=1 (KeepExisting) jest wymagane przez AutoCAD dla słowników
@@ -384,44 +397,26 @@
       e.lineWeight = A.LineWeightType.ByLayer;
       add(layerRef, e);
     };
-    /* Opis annotative: MultiLeader (MText) z reprezentacjami skal w słowniku
-       ACAD_ANNOTSCALE. paperH = wysokość papierowa w mm; wysokość w modelu =
-       paperH × mianownik skali (tekst ma stały rozmiar na wydruku). */
-    const fillCtx = (ctx, x, y, str, h) => {
-      ctx.scaleFactor = 1; ctx.hasTextContents = true; ctx.textLabel = str; ctx.textHeight = h;
-      ctx.textLocation = new A.XYZ(x, y, 0); ctx.contentBasePoint = new A.XYZ(x, y, 0); ctx.basePoint = new A.XYZ(x, y, 0);
-      ctx.textNormal = new A.XYZ(0, 0, 1); ctx.direction = new A.XYZ(1, 0, 0);
-      ctx.textAlignment = A.TextAlignmentType.Left;
-      ctx.textLeftAttachment = A.TextAttachmentType.MiddleOfText;
-      ctx.textRightAttachment = A.TextAttachmentType.MiddleOfText;
-      ctx.textColor = A.Color.byLayer; ctx.textStyle = textStyle;
-      const rr = new A.LeaderRoot(); rr.connectionPoint = new A.XYZ(x, y, 0); rr.direction = new A.XYZ(1, 0, 0); rr.contentValid = true;
-      const ll = new A.LeaderLine(); ll.points = [new A.XYZ(x, y, 0), new A.XYZ(x, y, 0)]; rr.lines.push(ll); ctx.leaderRoots.push(rr);
-    };
+    /* Opisy jako zwykły MTEXT w model space — zawsze widoczne, bez zależności od
+       CANNOSCALE. Wysokość jest przeskalowana do rozmiaru obszaru (ok. 1%
+       boku kwadratu, 10–25 m), więc pozostaje czytelna po Zoom Extents i nie
+       znika przy braku skali adnotacyjnej. */
+    const mapSide = sideMeters(bounds.area);
+    const labelHeight = paperH => clamp(mapSide * 0.01, 10, 25) * ((paperH || 2.5) / 2.5);
+    const middleLeft = (A.AttachmentPointType && A.AttachmentPointType.MiddleLeft) || 4;
     const text = (layerRef, value, p, paperH) => {
       if (!p || !value) return;
-      const str = String(value).slice(0, 200);
-      const hPaper = paperH || 2.5;
-      /* AutoCAD przechowuje w kontekście MLEADER wysokość już przeskalowaną do
-         modelu (char_height = papier_mm × mianownik skali). Kontekst bazowy
-         zostaje przy 1:1 (bezpieczny fallback, gdy CANNOSCALE nie zostanie
-         zaakceptowane), a reprezentacje 1:500/1:1000 mają wysokości modelu. */
-      const ml = new A.MultiLeader();
-      ml.contentType = A.LeaderContentType.MText; ml.enableAnnotationScale = true; ml.scaleFactor = 1;
-      ml.pathType = A.MultiLeaderPathType.Invisible; ml.enableDogleg = false; ml.enableLanding = false; ml.arrowheadSize = 0;
-      ml.textStyle = textStyle; ml.textColor = A.Color.byLayer; ml.lineWeight = A.LineWeightType.ByLayer;
-      fillCtx(ml.contextData, p[0], p[1], str, hPaper);
-      ml.contextData.scale = scales.get('1:1');
-      const xd = new A.CadDictionary(); ml.xDictionary = xd;
-      const ad = new A.CadDictionary('ACAD_ANNOTSCALE'); xd.addByKey('ACAD_ANNOTSCALE', ad);
-      [['1:1', 1, 1], ...ANNOT_SCALES].forEach(([n, pu, du]) => {
-        const rep = ml.contextData.clone();
-        rep.scale = scales.get(n);
-        rep.textHeight = hPaper * du;
-        rep.textStyle = textStyle;
-        ad.addByKey(n, rep);
-      });
-      add(layerRef, ml);
+      const e = new A.MText(String(value).slice(0, 200));
+      e.height = labelHeight(paperH);
+      e.insertPoint = new A.XYZ(p[0], p[1], 0);
+      e.attachmentPoint = middleLeft;
+      e.style = textStyle;
+      e.color = A.Color.byLayer;
+      e.lineWeight = A.LineWeightType.ByLayer;
+      e.isAnnotative = false;
+      e.horizontalWidth = 0.9;
+      e.lineSpacing = 1.0;
+      add(layerRef, e);
     };
     /* Zbiorcza warstwa zagospodarowania — kopiuje wybrane obiekty powierzchniowe. */
     const development = (points, closed, label) => {
@@ -482,10 +477,11 @@
       }
       const util = utilCategory(t);
       if (util) {
-        if (pts.length > 1) poly(LN.ZBROJENIE, pts, false);
-        else point(LN.ZBROJENIE, pts[0]);
+        const layer = UTILITY_LAYER[util] || 'ZBROJENIE_EL';
+        if (pts.length > 1) poly(LN[layer], pts, false);
+        else point(LN[layer], pts[0]);
         const names = { el: 'energia', water: 'woda', sewer: 'kanalizacja', gas: 'gaz', heat: 'ciepło', tel: 'telekomunikacja' };
-        text(LN.ZBROJENIE, (names[util] || util) + (label ? ' — ' + label : ''), pts[0], 2.5);
+        text(LN[layer], (names[util] || util) + (label ? ' — ' + label : ''), pts[0], 2.5);
         return;
       }
       if (t.landuse || t.natural || t.leisure) {
@@ -502,15 +498,15 @@
       }
     });
 
-    /* Metadane + legenda w lewym dolnym rogu obszaru (opisy annotative).
-       Rozstaw w modelu dobrany dla 1:1000 (3 mm papieru → 3 m), bez nakładania. */
+    /* Metadane + legenda w lewym dolnym rogu obszaru. Rozstaw rośnie wraz ze
+       skalą obszaru, żeby opisy nie nakładały się na sobie w 6 km². */
     const x0 = Math.min(...corners.map(p => p[0])) + 20;
     const y0 = Math.min(...corners.map(p => p[1])) + 20;
     const area = normalizeArea(bounds.area);
     const center = bounds.center || [
       (bounds.south + bounds.north) / 2, (bounds.west + bounds.east) / 2
     ];
-    const LH = 4.5;
+    const LH = labelHeight(3.5) * 1.5;
     let ty = y0;
     const meta = [
       'ANALIZA TERENU — EKSPORT OBSZARU ' + areaLabel(area) + ' km²',
@@ -525,7 +521,7 @@
     ty += LH;
     /* Legenda warstw — próbka linii (kolor + grubość) i opis zawartości każdej warstwy. */
     text(LN.LEGENDA, 'LEGENDA WARSTW — CO ZAWIERA RYSUNEK', [x0, ty], 3.5); ty += LH;
-    const SW = 6;
+    const SW = labelHeight(2.5) * 1.5;
     LAYERS.filter(d => d.key !== 'INFO' && d.key !== 'LEGENDA').forEach(def => {
       const sw = new A.LwPolyline([
         new A.LwPolylineVertex(new A.XY(x0, ty)),
@@ -536,10 +532,10 @@
       sw.lineWeight = def.lineWeight;
       doc.modelSpace.entities.add(sw); counts[LN.LEGENDA]++;
       const mm = (def.lineWeight / 100).toFixed(2);
-      text(LN.LEGENDA, def.name + '  (' + mm + ' mm · ' + counts[def.name] + ')  —  ' + def.desc, [x0 + SW + 3, ty], 3);
+      text(LN.LEGENDA, def.name + '  (' + mm + ' mm · ' + counts[def.name] + ')  —  ' + def.desc, [x0 + SW + labelHeight(2.5) * 0.5, ty], 3);
       ty += LH;
     });
-    text(LN.LEGENDA, 'Opisy annotative: 1:1 (baza), 1:500 i 1:1000. W CAD ustaw CANNOSCALE 1:500/1:1000. Grubości linii wg warstw (ByLayer).', [x0, ty], 3); ty += LH;
+    text(LN.LEGENDA, 'Opisy: MTEXT w model space (nieannotatywny) — zawsze widoczny. Skale 1:500/1:1000 dostępne na liście CAD. Grubości wg warstw (ByLayer).', [x0, ty], 3); ty += LH;
     text(LN.LEGENDA, 'Warstwy INFO i LEGENDA to adnotacje. Wszystkie warstwy mają prefiks ' + LAYER_PREFIX + '.', [x0, ty], 3);
 
     return { buffer: A.DwgWriter.writeToBuffer(doc), counts };
