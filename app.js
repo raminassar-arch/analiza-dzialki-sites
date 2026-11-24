@@ -1390,7 +1390,9 @@ map.on('locationerror', () => toast('Nie uzyskano lokalizacji (sprawdź uprawnie
 $('btn-reset').onclick = () => map.fitBounds(POLAND, { animate: false });
 
 map.on('click', e => {
-  if (window.DwgExport?.isSelecting()) return;
+  /* DWG export is triggered only by Shift+click. A normal click must still
+     select a building or start the parcel analysis while export mode is armed. */
+  if (window.DwgExport?.isSelecting() && window.DwgExport?.isExportClick(e)) return;
   if (buildingPickMode) {
     if (!A?.blds?.length) { toast('Najpierw przeanalizuj działkę, aby zobaczyć budynki.'); return; }
     const pt = [e.latlng.lat, e.latlng.lng];

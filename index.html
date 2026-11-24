@@ -10,9 +10,9 @@
 <meta name="description" content="Analiza terenu w wersji WWW — otwarte dane GUGiK, GUS i OpenStreetMap, mapa, nasłonecznienie i raport PDF.">
 <title>Analiza terenu — wersja WWW</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="vendor/leaflet.css?v=1.4.1">
-<link rel="stylesheet" href="styles.css?v=1.4.1">
-<link rel="stylesheet" href="site.css?v=1.4.1">
+<link rel="stylesheet" href="vendor/leaflet.css?v=1.4.2">
+<link rel="stylesheet" href="styles.css?v=1.4.2">
+<link rel="stylesheet" href="site.css?v=1.4.2">
 </head>
 <body>
 <div id="app">
@@ -32,8 +32,9 @@
         <option value="4">4 km²</option>
         <option value="6">6 km²</option>
       </select>
-      <button id="dwg-btn" class="secondary" title="Wybierz środek obszaru i wyeksportuj do DWG">📐 Eksport DWG 1 km²</button>
+      <button id="dwg-btn" class="secondary" title="Shift+klik wybierze środek obszaru i wyeksportuje go do DWG; zwykły klik nadal wybiera budynek lub rozpoczyna analizę">📐 Eksport DWG 1 km²</button>
     </div>
+    <div id="dwg-hint" class="hint dwg-hint" hidden>Przytrzymaj <b>Shift</b> i kliknij środek obszaru DWG. Zwykły klik nadal wybiera budynek lub rozpoczyna analizę. <b>Esc</b> anuluje.</div>
 
     <div class="search-wrap">
       <div class="search-box">
@@ -126,7 +127,7 @@
           <div><i class="sw sw-egib"></i>Działki i budynki (EGiB)</div>
           <div><i class="sw sw-mpzp"></i>Plany miejscowe (MPZP)</div>
         </div>
-        <p class="hint">Eksport DWG obszaru 1, 2, 4 lub 6 km² zawiera warstwy z prefiksem BIMRN_AR_: GRANICA, DZIALKI (GUGiK ULDK), ZAGOSPODAROWANIE, BUDYNKI, DROGI, ZBROJENIE, MIEJSCA_PARKINGOWE, OBIEKTY, UZYTKOWANIE, INFO i LEGENDA (OpenStreetMap). Opisy annotative (1:500 i 1:1000), grubości linii wg warstw (ByLayer); LEGENDA opisuje zawartość rysunku. Geometria w PUWG 1992 (metrach), format AutoCAD 2010 (AC1024).</p>
+        <p class="hint">Eksport DWG obszaru 1, 2, 4 lub 6 km² zawiera warstwy z prefiksem BIMRN_AR_: GRANICA, DZIALKI (GUGiK ULDK), ZAGOSPODAROWANIE, BUDYNKI, DROGI, ZBROJENIE, MIEJSCA_PARKINGOWE, OBIEKTY, UZYTKOWANIE, INFO i LEGENDA (OpenStreetMap). Opisy MTEXT w model space (nieannotatywne, skale 1:500 i 1:1000 dostępne na liście CAD), grubości linii wg PN-EN ISO 128-2 (ByLayer). LEGENDA i metadane są poza zaznaczonym obszarem. Geometria w PUWG 1992 (metrach), format AutoCAD 2010 (AC1024).</p>
         <p class="hint">Obarwienie EGiB i MPZP pochodzi z usług WMS GUGiK. Mapę podkładową zmieniasz ikoną 🗺 po prawej stronie mapy. Wszystkie źródła są otwarte i wymagają połączenia z Internetem.</p>
       </section>
 
@@ -170,14 +171,14 @@
 
 <section id="report" aria-hidden="true"></section>
 
-<script src="vendor/leaflet.js?v=1.4.1"></script>
-<script src="vendor/suncalc.min.js?v=1.4.1"></script>
-<script src="vendor/jspdf.umd.min.js?v=1.4.1"></script>
-<script src="vendor/pdf-font.js?v=1.4.1"></script>
-<script src="web-bridge.js?v=1.4.1"></script>
-<script src="vendor/proj4.js?v=1.4.1"></script>
-<script src="vendor/acad-ts.js?v=1.4.1"></script>
-<script src="dwg-export.js?v=1.4.1"></script>
-<script src="app.js?v=1.4.1"></script>
+<script src="vendor/leaflet.js?v=1.4.2"></script>
+<script src="vendor/suncalc.min.js?v=1.4.2"></script>
+<script src="vendor/jspdf.umd.min.js?v=1.4.2"></script>
+<script src="vendor/pdf-font.js?v=1.4.2"></script>
+<script src="web-bridge.js?v=1.4.2"></script>
+<script src="vendor/proj4.js?v=1.4.2"></script>
+<script src="vendor/acad-ts.js?v=1.4.2"></script>
+<script src="dwg-export.js?v=1.4.2"></script>
+<script src="app.js?v=1.4.2"></script>
 </body>
 </html>

@@ -50,13 +50,15 @@ zapobiega przetwarzaniu przez Jekyll.
 - raport PDF pobierany bezpośrednio do pliku, z widokiem sytuacyjnym 1:500 / 1:1000,
   cieniami i listą obiektów (bez okna druku),
 - **eksport DWG wybranego obszaru 1, 2, 4 lub 6 km²** — lista powierzchni i przycisk na górze
-  panelu, kliknięcie środka na mapie (podgląd zasięgu, `Esc` anuluje), własny pasek postępu
+  panelu, **Shift+kliknięcie** środka na mapie (podgląd zasięgu, `Esc` anuluje; zwykły klik nadal wybiera budynek/analizę), własny pasek postępu
   i bezpośrednie pobranie pliku `AC1024` / AutoCAD 2010 (EPSG:2180, metry). Wszystkie warstwy
   mają prefiks `BIMRN_AR_`: `GRANICA`, `DZIALKI` (ULDK, próbkowanie 100–150 m),
   `ZAGOSPODAROWANIE`, `BUDYNKI`, `DROGI`, `ZBROJENIE`, `MIEJSCA_PARKINGOWE`, `OBIEKTY`,
-  `UZYTKOWANIE`, `INFO`, `LEGENDA` (OSM). Opisy są **annotative** (skale 1:500 i 1:1000,
-  `CANNOSCALE` 1:500) — stały rozmiar na wydruku; grubości linii dobrane per warstwa
-  (`ByLayer`, 0,13–0,50 mm). Warstwa `LEGENDA` zawiera próbkę koloru/grubości i opis
+  `UZYTKOWANIE`, `INFO`, `LEGENDA` (OSM). Opisy to zwykły **MTEXT w model space**
+  (nieannotatywny; skale 1:500 i 1:1000 są dostępne na liście CAD). Grubości linii
+  są dobrane per warstwa wg **PN-EN ISO 128-2** (`ByLayer`, 0,18 / 0,25 / 0,35 /
+  0,50 mm). Warstwa `LEGENDA` i metadane `INFO` leżą poza granicą zaznaczonego
+  kwadratu (po jego prawej stronie) i zawierają próbkę koloru/grubości oraz opis
   zawartości każdej warstwy. `AC1024` zastępuje wcześniejszy `AC1021`, który w części CAD
   kończył się błędem „Drawing file is not valid”; nowy format zachowuje polskie znaki w tekstach.
 
@@ -86,7 +88,7 @@ Jeśli Pages nie jest jeszcze włączone: **Settings → Pages → Build and dep
 → Source: Deploy from a branch → Branch: `main`, folder: `/ (root)` → Save**.
 
 Po zmianach w `app.js`, `dwg-export.js`, `styles.css`, `site.css` lub `web-bridge.js` podnieś
-sufiks `?v=1.4.1` w `index.html`, aby przeglądarki nie trzymały starych plików
+sufiks `?v=1.4.2` w `index.html`, aby przeglądarki nie trzymały starych plików
 z pamięci podręcznej (GitHub Pages ustawia `Cache-Control: max-age=600`).
 
 ## Osadzenie w Google Sites

@@ -23,26 +23,31 @@
   let preview = null;
   let busy = false;
 
-  /* lineWeight = setna część milimetra (50 → 0,50 mm); encja dziedziczy ją przez ByLayer.
-     Kolory ACI dobrane tak, by rysunek czytał się jak mapa do celów projektowych:
-     budynki czerwone, drogi ciemnoszare, sieci rozdzielone kolorami mediów. */
+  /* PN-EN ISO 128-2: podstawowy szereg grubości linii to 0,18 / 0,25 / 0,35 /
+     0,50 mm. Używamy go bez pośrednich wartości:
+       0,18 mm — linie cienkie (sieci, użytkowanie, adnotacje),
+       0,25 mm — linie pomocnicze (działki, drogi, parkingi, obiekty),
+       0,35 mm — główne krawędzie obiektów (budynki),
+       0,50 mm — linie grube (granica obszaru).
+     lineWeight jest w setnych milimetra; encje dziedziczą go przez ByLayer. */
+  const LW = { thin: 18, light: 25, main: 35, bold: 50 };
   const LAYER_DEFS = [
-    { key: 'GRANICA',            color: 5,  lineWeight: 50, desc: 'Granica eksportowanego obszaru (kwadrat)' },
-    { key: 'DZIALKI',            color: 3,  lineWeight: 50, desc: 'Działki ewidencyjne (GUGiK ULDK)' },
-    { key: 'ZAGOSPODAROWANIE',   color: 9,  lineWeight: 50, desc: 'Zagospodarowanie — zbiorcza warstwa działek, budynków, dróg, terenów i parkingów' },
-    { key: 'BUDYNKI',            color: 1,  lineWeight: 50, desc: 'Budynki — czerwone, 0,50 mm (OpenStreetMap)' },
-    { key: 'DROGI',              color: 8,  lineWeight: 50, desc: 'Drogi i linie kolejowe — ciemnoszare, 0,50 mm (OpenStreetMap)' },
-    { key: 'ZBROJENIE_EL',       color: 30, lineWeight: 50, desc: 'Zbrojenie — energetyka, pomarańczowa (OSM)' },
-    { key: 'ZBROJENIE_WODA',     color: 5,  lineWeight: 50, desc: 'Zbrojenie — wodociągi, niebieska (OSM)' },
-    { key: 'ZBROJENIE_KANAL',    color: 6,  lineWeight: 50, desc: 'Zbrojenie — kanalizacja, karmazynowa (OSM)' },
-    { key: 'ZBROJENIE_GAZ',      color: 3,  lineWeight: 50, desc: 'Zbrojenie — gazociągi, zielona (OSM)' },
-    { key: 'ZBROJENIE_CIEPLO',   color: 2,  lineWeight: 50, desc: 'Zbrojenie — ciepłownictwo, żółta (OSM)' },
-    { key: 'ZBROJENIE_TELEKOM',  color: 4,  lineWeight: 50, desc: 'Zbrojenie — telekomunikacja, cyjanowa (OSM)' },
-    { key: 'MIEJSCA_PARKINGOWE', color: 6,  lineWeight: 50, desc: 'Miejsca parkingowe i parkingi — karmazynowe (OpenStreetMap)' },
-    { key: 'OBIEKTY',            color: 4,  lineWeight: 50, desc: 'Obiekty i punkty zainteresowania (OpenStreetMap)' },
-    { key: 'UZYTKOWANIE',        color: 94, lineWeight: 50, desc: 'Użytkowanie terenu (OpenStreetMap)' },
-    { key: 'INFO',               color: 7,  lineWeight: 50, desc: 'Opis źródeł i parametrów eksportu' },
-    { key: 'LEGENDA',            color: 7,  lineWeight: 50, desc: 'Legenda warstw i opis zawartości rysunku' }
+    { key: 'GRANICA',            color: 5,  lineWeight: LW.bold,  desc: 'Granica eksportowanego obszaru (kwadrat), linia gruba' },
+    { key: 'DZIALKI',            color: 3,  lineWeight: LW.light, desc: 'Działki ewidencyjne (GUGiK ULDK), linie cienkie' },
+    { key: 'ZAGOSPODAROWANIE',   color: 9,  lineWeight: LW.light, desc: 'Zagospodarowanie — zbiorcza warstwa działek, budynków, dróg, terenów i parkingów' },
+    { key: 'BUDYNKI',            color: 1,  lineWeight: LW.main,  desc: 'Budynki — czerwone, główne krawędzie (OpenStreetMap)' },
+    { key: 'DROGI',              color: 8,  lineWeight: LW.light, desc: 'Drogi i linie kolejowe — ciemnoszare (OpenStreetMap)' },
+    { key: 'ZBROJENIE_EL',       color: 30, lineWeight: LW.thin,  desc: 'Zbrojenie — energetyka, pomarańczowa (OSM)' },
+    { key: 'ZBROJENIE_WODA',     color: 5,  lineWeight: LW.thin,  desc: 'Zbrojenie — wodociągi, niebieska (OSM)' },
+    { key: 'ZBROJENIE_KANAL',    color: 6,  lineWeight: LW.thin,  desc: 'Zbrojenie — kanalizacja, karmazynowa (OSM)' },
+    { key: 'ZBROJENIE_GAZ',      color: 3,  lineWeight: LW.thin,  desc: 'Zbrojenie — gazociągi, zielona (OSM)' },
+    { key: 'ZBROJENIE_CIEPLO',   color: 2,  lineWeight: LW.thin,  desc: 'Zbrojenie — ciepłownictwo, żółta (OSM)' },
+    { key: 'ZBROJENIE_TELEKOM',  color: 4,  lineWeight: LW.thin,  desc: 'Zbrojenie — telekomunikacja, cyjanowa (OSM)' },
+    { key: 'MIEJSCA_PARKINGOWE', color: 6,  lineWeight: LW.light, desc: 'Miejsca parkingowe i parkingi — karmazynowe (OpenStreetMap)' },
+    { key: 'OBIEKTY',            color: 4,  lineWeight: LW.light, desc: 'Obiekty i punkty zainteresowania (OpenStreetMap)' },
+    { key: 'UZYTKOWANIE',        color: 94, lineWeight: LW.thin,  desc: 'Użytkowanie terenu (OpenStreetMap)' },
+    { key: 'INFO',               color: 7,  lineWeight: LW.thin,  desc: 'Opis źródeł i parametrów eksportu' },
+    { key: 'LEGENDA',            color: 7,  lineWeight: LW.thin,  desc: 'Legenda warstw i opis zawartości rysunku' }
   ];
   const LAYERS = LAYER_DEFS.map(d => ({
     key: d.key, name: LAYER_PREFIX + d.key, color: d.color, lineWeight: d.lineWeight, desc: d.desc
@@ -115,11 +120,20 @@
     const btn = el('dwg-btn');
     if (btn) {
       btn.textContent = '📐 Eksport DWG ' + areaLabel(area) + ' km²';
-      btn.title = 'Wybierz środek obszaru ' + areaLabel(area) + ' km² (' + side + ' × ' + side + ' m) i wyeksportuj do DWG';
+      btn.title = selecting
+        ? 'Anuluj wybór obszaru (Esc). Shift+klik wyznacza środek; zwykły klik nadal wybiera budynek/analizę.'
+        : 'Shift+klik wybierze środek obszaru ' + areaLabel(area) + ' km² (' + side + ' × ' + side + ' m) i wyeksportuje go do DWG';
     }
     const title = el('dwg-progress-title');
     if (title) title.textContent = 'Eksport DWG ' + areaLabel(area) + ' km²';
     if (selecting && preview && opts?.map) preview.setBounds(boxFromLatLng(opts.map.getCenter(), area));
+  }
+
+  /* DWG export uses a modifier so a plain map click keeps its normal job
+     (building pick / parcel analysis). Leaflet keeps the source mouse event
+     in `originalEvent`. */
+  function isExportModifier(e) {
+    return !!(e && e.originalEvent && e.originalEvent.shiftKey);
   }
 
   function setSelecting(on) {
@@ -129,13 +143,15 @@
     const btn = el('dwg-btn');
     if (btn) {
       btn.classList.toggle('active', on);
-      btn.title = on ? 'Anuluj wybór obszaru (Esc)' :
-        'Wybierz środek obszaru ' + areaLabel(area) + ' km² (' + side + ' × ' + side + ' m) i wyeksportuj do DWG';
+      btn.title = on ? 'Anuluj wybór obszaru (Esc). Shift+klik wyznacza środek; zwykły klik nadal wybiera budynek/analizę.' :
+        'Shift+klik wybierze środek obszaru ' + areaLabel(area) + ' km² (' + side + ' × ' + side + ' m) i wyeksportuje go do DWG';
     }
+    const hint = el('dwg-hint');
+    if (hint) hint.hidden = !on;
     if (opts?.map) opts.map.getContainer().style.cursor = on ? 'crosshair' : '';
     if (!on && preview) { preview.remove(); preview = null; }
-    if (on) opts?.toast?.('Kliknij środek obszaru na mapie — zostanie wyeksportowany kwadrat ' +
-      areaLabel(area) + ' km² (' + side + ' × ' + side + ' m). Esc anuluje.');
+    if (on) opts?.toast?.('Eksport DWG: przytrzymaj Shift i kliknij środek obszaru — zostanie wyeksportowany kwadrat ' +
+      areaLabel(area) + ' km² (' + side + ' × ' + side + ' m). Zwykły klik nadal wybiera budynek lub rozpoczyna analizę. Esc anuluje.');
   }
 
   /* Fetch through the desktop IPC when available (some open-data servers do
@@ -502,10 +518,14 @@
       }
     });
 
-    /* Metadane + legenda w lewym dolnym rogu obszaru. Rozstaw rośnie wraz ze
-       skalą obszaru, żeby opisy nie nakładały się na sobie w 6 km². */
-    const x0 = Math.min(...corners.map(p => p[0])) + 20;
-    const y0 = Math.min(...corners.map(p => p[1])) + 20;
+    /* Metadane + legenda są rysowane na prawo od granicy wybranego kwadratu —
+       nie zasłaniają więc obszaru eksportu. Rozstaw rośnie wraz ze skalą
+       obszaru, żeby opisy nie nakładały się na sobie w 6 km². */
+    const maxX = Math.max(...corners.map(p => p[0]));
+    const maxY = Math.max(...corners.map(p => p[1]));
+    const legendGap = Math.max(40, mapSide * 0.02);
+    const x0 = maxX + legendGap;
+    const y0 = maxY - legendGap;
     const area = normalizeArea(bounds.area);
     const center = bounds.center || [
       (bounds.south + bounds.north) / 2, (bounds.west + bounds.east) / 2
@@ -523,7 +543,7 @@
     ];
     meta.forEach(line => { text(LN.INFO, line, [x0, ty], 3); ty += LH; });
     ty += LH;
-    /* Legenda warstw — próbka linii (kolor + grubość) i opis zawartości każdej warstwy. */
+    /* Legenda warstw — próbka linii (kolor + grubość wg PN-EN ISO 128-2). */
     text(LN.LEGENDA, 'LEGENDA WARSTW — CO ZAWIERA RYSUNEK', [x0, ty], 3.5); ty += LH;
     const SW = labelHeight(2.5) * 1.5;
     LAYERS.filter(d => d.key !== 'INFO' && d.key !== 'LEGENDA').forEach(def => {
@@ -535,11 +555,11 @@
       sw.color = new A.Color(def.color);
       sw.lineWeight = def.lineWeight;
       doc.modelSpace.entities.add(sw); counts[LN.LEGENDA]++;
-      const mm = (def.lineWeight / 100).toFixed(2);
+      const mm = (def.lineWeight / 100).toFixed(2).replace('.', ',');
       text(LN.LEGENDA, def.name + '  (' + mm + ' mm · ' + counts[def.name] + ')  —  ' + def.desc, [x0 + SW + labelHeight(2.5) * 0.5, ty], 3);
       ty += LH;
     });
-    text(LN.LEGENDA, 'Opisy: MTEXT w model space (nieannotatywny) — zawsze widoczny. Skale 1:500/1:1000 dostępne na liście CAD. Grubości wg warstw (ByLayer).', [x0, ty], 3); ty += LH;
+    text(LN.LEGENDA, 'Adnotacje leżą poza granicą obszaru. Opisy: MTEXT w model space (nieannotatywny). Skale 1:500/1:1000 na liście CAD. Grubości wg PN-EN ISO 128-2 (ByLayer).', [x0, ty], 3); ty += LH;
     text(LN.LEGENDA, 'Warstwy INFO i LEGENDA to adnotacje. Wszystkie warstwy mają prefiks ' + LAYER_PREFIX + '.', [x0, ty], 3);
 
     return { buffer: A.DwgWriter.writeToBuffer(doc), counts };
@@ -623,7 +643,10 @@
     if (btn) btn.onclick = () => setSelecting(!selecting);
     updateAreaUi();
     opts.map.on('mousemove', e => {
-      if (!selecting || busy) return;
+      if (!selecting || busy || !isExportModifier(e)) {
+        if (preview) { preview.remove(); preview = null; }
+        return;
+      }
       const area = selectedArea();
       if (!preview) {
         preview = L.rectangle(boxFromLatLng(e.latlng, area), {
@@ -635,11 +658,11 @@
       }
     });
     opts.map.on('click', e => {
-      if (!selecting || busy) return;
+      if (!selecting || busy || !isExportModifier(e)) return;
       const center = [e.latlng.lat, e.latlng.lng];
       const area = selectedArea();
-      /* The application's own map-click handler must not start a new analysis
-         while the DWG area is being picked. */
+      /* The application's own map-click handler skips only this Shift+click;
+         ordinary clicks still pick buildings / start the parcel analysis. */
       setTimeout(() => setSelecting(false), 0);
       exportArea({ lat: center[0], lng: center[1] }, area);
     });
@@ -651,6 +674,7 @@
   window.DwgExport = {
     init,
     isSelecting: () => selecting,
+    isExportClick: isExportModifier,
     exportArea,
     areaBounds,
     selectedArea,
