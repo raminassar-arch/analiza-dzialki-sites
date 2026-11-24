@@ -131,4 +131,4 @@ Potem otwórz `http://localhost:8000/`. Nie otwieraj `index.html` przez
 
 ---
 
-Rami Nassar · © 2026 · wersja WWW 1.4.0
+Rami Nassar · © 2026 · wersja WWW 1.4.2
